@@ -3,7 +3,13 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-PYTHON_BIN="${PYTHON_BIN:-python}"
+if [[ -z "${PYTHON_BIN:-}" ]]; then
+  if [[ ! -x ".venv/bin/python" ]]; then
+    echo "== Create project venv =="
+    python -m venv --system-site-packages .venv
+  fi
+  PYTHON_BIN=".venv/bin/python"
+fi
 
 echo "== Python =="
 "${PYTHON_BIN}" - <<'PY'

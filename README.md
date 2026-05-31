@@ -114,6 +114,11 @@ bash scripts/runpod_smoke_test.sh
 bash scripts/runpod_train_e5.sh
 ```
 
+On RunPod PyTorch images, `setup_runpod.sh` creates `.venv` with
+`--system-site-packages` by default, so the image's preinstalled Torch/CUDA
+stack is reused while project-only packages such as `encodec` are installed
+inside the repository.
+
 ## Diagnose Before Full Generation
 
 Run diagnostics before judging full generation quality:

@@ -3,7 +3,11 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-PYTHON_BIN="${PYTHON_BIN:-python}"
+if [[ -z "${PYTHON_BIN:-}" && -x ".venv/bin/python" ]]; then
+  PYTHON_BIN=".venv/bin/python"
+else
+  PYTHON_BIN="${PYTHON_BIN:-python}"
+fi
 DATA_CONFIG="${DATA_CONFIG:-configs/runpod_data_config.yaml}"
 MODEL_CONFIG="${MODEL_CONFIG:-configs/model_config.yaml}"
 TRAIN_CONFIG="${TRAIN_CONFIG:-configs/runpod_train_config.yaml}"

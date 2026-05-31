@@ -111,10 +111,15 @@ bash scripts/setup_runpod.sh
 
 它会做：
 
-- `pip install -r requirements.txt`
+- 自动创建 `.venv`，并用 `--system-site-packages` 复用 PyTorch 镜像里已有的 Torch/CUDA
+- 在 `.venv` 里 `pip install -r requirements.txt`
 - 检查 `torch/torchaudio/encodec`
 - 检查 CUDA/GPU 名称
 - 跑 `scripts/smoke_test_e5.py`
+
+这样可以避开部分 RunPod 镜像的 `externally-managed-environment` / PEP 668
+限制。后面的 `runpod_smoke_test.sh`、`runpod_train_e5.sh`、`runpod_diagnostics_e5.sh`
+也会自动优先使用这个 `.venv`。
 
 成功输出应包含：
 
