@@ -22,6 +22,8 @@ def main():
     parser.add_argument("--model_config", default="configs/model_config.yaml")
     parser.add_argument("--train_config", default="configs/train_config.yaml")
     parser.add_argument("--overfit", action="store_true", help="Overfit mode: 5-10 clips")
+    parser.add_argument("--epochs", type=int, default=None, help="Override number of epochs")
+    parser.add_argument("--resume", default=None, help="Path to checkpoint to resume from")
     parser.add_argument("--device", default="cpu")
     args = parser.parse_args()
 
@@ -50,8 +52,15 @@ def main():
     )
 
     # build datasets
-    n_train = data_cfg["data"].get("overfit_n_clips", 8) if args.overfit else data_cfg["data"].get("train_n_clips", 100)
-    n_val = 5 if args.overfit else data_cfg["data"].get("val_n_clips", 20)
+    n_train = (
+        data_cfg.get("overfit_n_clips", data_cfg["data"].get("overfit_n_clips", 8))
+        if args.overfit
+        else data_cfg.get("train_n_clips", data_cfg["data"].get("train_n_clips", 100))
+    )
+    n_val = (
+        5 if args.overfit
+        else data_cfg.get("val_n_clips", data_cfg["data"].get("val_n_clips", 20))
+    )
 
     train_ds = SlakhContextTargetDataset(
         data_root=data_cfg["data"]["data_root"],
@@ -78,13 +87,15 @@ def main():
         train_ds,
         batch_size=train_cfg["training"].get("batch_size", 8),
         shuffle=True,
-        num_workers=0,
+        num_workers=train_cfg["training"].get("num_workers", 0),
+        pin_memory=str(device).startswith("cuda"),
     )
     val_loader = DataLoader(
         val_ds,
         batch_size=train_cfg["training"].get("batch_size", 8),
         shuffle=False,
-        num_workers=0,
+        num_workers=train_cfg["training"].get("num_workers", 0),
+        pin_memory=str(device).startswith("cuda"),
     )
 
     # build model
@@ -114,6 +125,8 @@ def main():
         mask_ratio_min=tc.get("mask_ratio_min"),
         mask_ratio_max=tc.get("mask_ratio_max"),
         codebook_weights=tc.get("codebook_weights"),
+        use_amp=tc.get("use_amp", False),
+        gradient_accumulation_steps=tc.get("gradient_accumulation_steps", 1),
     )
 
     # logging
@@ -122,12 +135,19 @@ def main():
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     # training loop
-    num_epochs = tc.get("num_epochs", 50) if not args.overfit else 200
+    num_epochs = args.epochs or (tc.get("num_epochs", 50) if not args.overfit else 200)
     mode_str = "OVERFIT" if args.overfit else "TRAINING"
     print(f"\n{mode_str}: {num_epochs} epochs")
 
     best_val_loss = float("inf")
-    for epoch in range(1, num_epochs + 1):
+    start_epoch = 1
+    if args.resume:
+        loaded_epoch, loaded_metrics = trainer.load_checkpoint(args.resume)
+        start_epoch = loaded_epoch + 1
+        best_val_loss = loaded_metrics.get("loss", best_val_loss)
+        print(f"Resumed from {args.resume} at epoch {loaded_epoch}")
+
+    for epoch in range(start_epoch, num_epochs + 1):
         train_metrics = trainer.train_epoch(train_loader, codec, epoch)
         val_metrics = trainer.validate(val_loader, codec)
 

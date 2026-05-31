@@ -586,3 +586,27 @@ git push -u origin experiment/e5-audio-token
 5. 更新 `outputs/experiment_log.md`。
 
 只有这五项过关，才值得进入 4090 一天训练。
+
+## 12. RunPod 夜间训练入口
+
+服务器部署和训练命令见：
+
+```text
+docs/RUNPOD_DEPLOYMENT_CN.md
+```
+
+推荐 GPU：
+
+```text
+首选: RTX 4090 24GB
+更稳: L40/L40S/6000 Ada 48GB
+```
+
+服务器最短命令链：
+
+```bash
+bash scripts/setup_runpod.sh
+N_TRACKS=200 bash scripts/prepare_runpod_data.sh
+bash scripts/runpod_smoke_test.sh
+bash scripts/runpod_train_e5.sh
+```

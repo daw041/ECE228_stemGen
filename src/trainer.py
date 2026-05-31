@@ -22,14 +22,21 @@ class MaskedTokenTrainer:
         mask_ratio_min: float = None,
         mask_ratio_max: float = None,
         codebook_weights=None,
+        use_amp: bool = False,
+        gradient_accumulation_steps: int = 1,
     ):
         self.model = model.to(device)
         self.device = device
-        self.mask_ratio = mask_ratio
         self.mask_ratio = float(mask_ratio)
         self.mask_ratio_min = None if mask_ratio_min is None else float(mask_ratio_min)
         self.mask_ratio_max = None if mask_ratio_max is None else float(mask_ratio_max)
         self.mask_token_id = model.mask_token_id
+        self.use_amp = bool(use_amp and str(device).startswith("cuda"))
+        self.gradient_accumulation_steps = max(1, int(gradient_accumulation_steps))
+        try:
+            self.scaler = torch.amp.GradScaler("cuda", enabled=self.use_amp)
+        except TypeError:
+            self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
         if codebook_weights is None:
             codebook_weights = [1.0] * model.num_codebooks
         if len(codebook_weights) != model.num_codebooks:
@@ -99,7 +106,8 @@ class MaskedTokenTrainer:
         cb_correct = [0.0 for _ in range(self.model.num_codebooks)]
         cb_total = [0 for _ in range(self.model.num_codebooks)]
         pbar = tqdm(dataloader, desc=f"Epoch {epoch}")
-        for batch in pbar:
+        self.optimizer.zero_grad(set_to_none=True)
+        for step, batch in enumerate(pbar, start=1):
             ctx = batch["context"]
             tgt = batch["target"]
             inst = batch["instrument"]
@@ -113,11 +121,22 @@ class MaskedTokenTrainer:
                 tgt_tok = tgt_tok.unsqueeze(0)
             if tgt_tok.shape[0] != ctx_tok.shape[0]:
                 tgt_tok = tgt_tok.expand(ctx_tok.shape[0], -1, -1)
-            self.optimizer.zero_grad()
-            loss, acc, n_tok, batch_cb_correct, batch_cb_total = self._step(ctx_tok, tgt_tok, inst)
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
-            self.optimizer.step()
+            with torch.amp.autocast("cuda", enabled=self.use_amp):
+                loss, acc, n_tok, batch_cb_correct, batch_cb_total = self._step(ctx_tok, tgt_tok, inst)
+                scaled_loss = loss / self.gradient_accumulation_steps
+            self.scaler.scale(scaled_loss).backward()
+
+            should_step = (
+                step % self.gradient_accumulation_steps == 0
+                or step == len(dataloader)
+            )
+            if should_step:
+                self.scaler.unscale_(self.optimizer)
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+                self.optimizer.zero_grad(set_to_none=True)
+
             total_loss += loss.item()
             correct_tokens += acc
             total_tokens += n_tok
@@ -160,10 +179,11 @@ class MaskedTokenTrainer:
             if tgt_tok.shape[0] != ctx_tok.shape[0]:
                 tgt_tok = tgt_tok.expand(ctx_tok.shape[0], -1, -1)
             masked_target = self._mask_target_tokens(tgt_tok)
-            logits = self.model(ctx_tok, masked_target, inst)
-            loss, acc, n_tok, batch_cb_correct, batch_cb_total = self._loss_and_accuracy(
-                logits, tgt_tok, masked_target
-            )
+            with torch.amp.autocast("cuda", enabled=self.use_amp):
+                logits = self.model(ctx_tok, masked_target, inst)
+                loss, acc, n_tok, batch_cb_correct, batch_cb_total = self._loss_and_accuracy(
+                    logits, tgt_tok, masked_target
+                )
             total_loss += loss.item()
             correct_tokens += acc
             total_tokens += n_tok
@@ -186,6 +206,7 @@ class MaskedTokenTrainer:
             "epoch": epoch,
             "model_state_dict": self.model.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
+            "scaler_state_dict": self.scaler.state_dict() if self.use_amp else None,
             "metrics": metrics,
         }, path)
 
@@ -193,4 +214,6 @@ class MaskedTokenTrainer:
         ckpt = torch.load(path, map_location=self.device)
         self.model.load_state_dict(ckpt["model_state_dict"])
         self.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        if self.use_amp and ckpt.get("scaler_state_dict") is not None:
+            self.scaler.load_state_dict(ckpt["scaler_state_dict"])
         return ckpt["epoch"], ckpt["metrics"]

@@ -23,6 +23,8 @@ configs/                 Audio-token training/model/data configs
 docs/                    Notes, debugging guides, reproduction references
   NEXT_EXPERIMENT_PLAN_CN.md
                           Chinese collaboration plan for the next experiments
+  RUNPOD_DEPLOYMENT_CN.md
+                          RunPod setup, data prep, training, diagnostics guide
 scripts/
   train.py               Train the audio-token masked Transformer
   smoke_test_e5.py       Fast config/model/trainer/generation sanity test
@@ -96,6 +98,21 @@ python scripts/train.py \
 ```
 
 Checkpoints are written to `outputs/audio_token/e5_2cb/checkpoints/` by default.
+
+## RunPod
+
+For overnight server training, see:
+
+[docs/RUNPOD_DEPLOYMENT_CN.md](docs/RUNPOD_DEPLOYMENT_CN.md)
+
+Quick server path:
+
+```bash
+bash scripts/setup_runpod.sh
+N_TRACKS=200 bash scripts/prepare_runpod_data.sh
+bash scripts/runpod_smoke_test.sh
+bash scripts/runpod_train_e5.sh
+```
 
 ## Diagnose Before Full Generation
 

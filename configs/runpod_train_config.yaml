@@ -1,0 +1,26 @@
+# RunPod E5 training configuration.
+training:
+  # RTX 4090 24GB should usually handle 8 for the 28M model and 10s clips.
+  # If CUDA OOM occurs, set batch_size to 4.
+  batch_size: 8
+  num_workers: 2
+  num_epochs: 300
+  learning_rate: 3e-4
+  weight_decay: 1e-5
+  warmup_steps: 500
+  use_amp: true
+  gradient_accumulation_steps: 1
+
+  mask_ratio: 0.75
+  mask_ratio_min: 0.50
+  mask_ratio_max: 1.00
+  mask_token_id: 1024
+  codebook_weights: [1.0, 1.0]
+
+  optimizer: "adamw"
+  betas: [0.9, 0.999]
+
+  save_every_n_epochs: 10
+  checkpoint_dir: "outputs/audio_token/runpod_e5_2cb/checkpoints"
+
+  log_every_n_steps: 50

@@ -1,9 +1,12 @@
 # Training configuration for StemGen reproduction
 training:
   batch_size: 4
+  num_workers: 0
   num_epochs: 200
   learning_rate: 3e-4
   weight_decay: 1e-5
+  use_amp: true
+  gradient_accumulation_steps: 1
   warmup_steps: 500
 
   # Masking

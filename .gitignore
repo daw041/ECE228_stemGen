@@ -23,6 +23,7 @@ env/
 dataset/*
 !dataset/README.md
 outputs/*
+outputs/**/*
 !outputs/**/
 !outputs/**/*.md
 !outputs/README.md
