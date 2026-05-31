@@ -4,6 +4,10 @@ data:
   data_root: "dataset/audio_subset"
   sample_rate: 24000
   clip_duration: 10.0
+  min_target_rms_db: -50.0
+  min_target_active_ratio: 0.05
+  target_active_threshold: 1e-4
+  max_clip_resample_attempts: 30
 
 target_instrument: "bass"
 

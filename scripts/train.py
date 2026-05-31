@@ -74,6 +74,10 @@ def main():
         sample_rate=data_cfg["data"].get("sample_rate", codec.sample_rate),
         split="train",
         max_clips=n_train,
+        min_target_rms_db=data_cfg["data"].get("min_target_rms_db"),
+        min_target_active_ratio=data_cfg["data"].get("min_target_active_ratio", 0.0),
+        target_active_threshold=data_cfg["data"].get("target_active_threshold", 1e-4),
+        max_clip_resample_attempts=data_cfg["data"].get("max_clip_resample_attempts", 20),
     )
     val_ds = SlakhContextTargetDataset(
         data_root=data_cfg["data"]["data_root"],
@@ -83,6 +87,10 @@ def main():
         sample_rate=data_cfg["data"].get("sample_rate", codec.sample_rate),
         split="val",
         max_clips=n_val,
+        min_target_rms_db=data_cfg["data"].get("min_target_rms_db"),
+        min_target_active_ratio=data_cfg["data"].get("min_target_active_ratio", 0.0),
+        target_active_threshold=data_cfg["data"].get("target_active_threshold", 1e-4),
+        max_clip_resample_attempts=data_cfg["data"].get("max_clip_resample_attempts", 20),
     )
 
     print(f"Train clips: {len(train_ds)}, Val clips: {len(val_ds)}")
