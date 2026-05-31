@@ -2,7 +2,7 @@
 data:
   dataset: "slakh2100"
   # Path to extracted Slakh2100 data
-  data_root: "E:/datasets/slakh2100"
+  data_root: "dataset/audio_subset"
   sample_rate: 24000
   clip_duration: 10.0  # seconds; closer to StemGen's 20s crops while still practical
 

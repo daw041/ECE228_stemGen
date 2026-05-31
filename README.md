@@ -26,6 +26,9 @@ docs/                    Notes, debugging guides, reproduction references
 scripts/
   train.py               Train the audio-token masked Transformer
   smoke_test_e5.py       Fast config/model/trainer/generation sanity test
+  smoke_test_e5_data.py  Real extracted-audio sanity test
+  extract_audio_subset.py
+                          Extract a tiny audio-token subset from archive.zip
   generate.py            Full-mask target-stem generation
   diagnose_audio_token.py Codec + partial-mask reconstruction diagnostics
   evaluate.py            Basic audio-token evaluation
@@ -63,6 +66,24 @@ pip install -r requirements.txt
 ```
 
 The dataset path is configured in `configs/data_config.yaml`.
+
+For local testing without unpacking the full archive:
+
+```bash
+python scripts/extract_audio_subset.py \
+  --archive dataset/archive.zip \
+  --out_dir dataset/audio_subset \
+  --n_tracks 4
+```
+
+Then run a real-data smoke test:
+
+```bash
+python scripts/smoke_test_e5_data.py \
+  --data_root dataset/audio_subset \
+  --clip_duration 10.0 \
+  --device cuda
+```
 
 ## Train
 

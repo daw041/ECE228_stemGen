@@ -91,9 +91,16 @@ class SlakhContextTargetDataset(Dataset):
 
         # build context
         if self.context_mode == "mixture_minus_target":
-            context_wav = sum(
-                w for name, w in stems.items() if name != self.target_instrument
-            )
+            mix_wav = self._load_stem(track_dir, "mix")
+            if mix_wav is not None:
+                min_len = min(mix_wav.shape[1], target_wav.shape[1])
+                context_wav = mix_wav[:, :min_len] - target_wav[:, :min_len]
+                target_wav = target_wav[:, :min_len]
+            else:
+                other_stems = [w for name, w in stems.items() if name != self.target_instrument]
+                if not other_stems:
+                    return self.__getitem__((idx + 1) % len(self))
+                context_wav = sum(other_stems)
         else:
             # future: random_stem_subset
             context_wav = sum(stems.values())

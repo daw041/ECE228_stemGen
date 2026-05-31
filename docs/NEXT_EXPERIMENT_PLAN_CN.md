@@ -204,6 +204,29 @@ python scripts/smoke_test_e5.py --device cuda --seq_len 64 --batch_size 2
 
 第二步再跑真实 codec/dataset 相关 overfit：
 
+如果还没有小规模真实音频子集，先只从 `dataset/archive.zip` 抽几首：
+
+```bash
+python scripts/extract_audio_subset.py \
+  --archive dataset/archive.zip \
+  --out_dir dataset/audio_subset \
+  --n_tracks 4
+```
+
+然后跑真实数据单 batch 测试：
+
+```bash
+python scripts/smoke_test_e5_data.py \
+  --data_root dataset/audio_subset \
+  --clip_duration 10.0 \
+  --device cuda
+```
+
+这一步已经在本地 `E:/conda_envs/torch_study` 环境通过，10 秒 clip 的 token shape 为
+`(1, 2, 750)`。
+
+第三步再跑 overfit：
+
 ```bash
 pip install -r requirements.txt
 python scripts/train.py --overfit --device cuda
