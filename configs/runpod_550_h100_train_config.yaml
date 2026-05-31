@@ -1,0 +1,30 @@
+# RunPod H100 550-track filtered E5 training configuration.
+# Uses the same data/model setup as runpod_550_train_config.yaml, but with
+# larger batches and more DataLoader workers to avoid underusing H100.
+training:
+  batch_size: 32
+  num_workers: 8
+  num_epochs: 100
+  learning_rate: 3e-4
+  weight_decay: 1e-5
+  warmup_steps: 500
+  use_amp: true
+  gradient_accumulation_steps: 1
+
+  mask_ratio: 0.75
+  mask_ratio_min: 0.50
+  mask_ratio_max: 1.00
+  mask_token_id: 1024
+  codebook_weights: [1.0, 1.0]
+
+  optimizer: "adamw"
+  betas: [0.9, 0.999]
+
+  save_every_n_epochs: 5
+  early_stopping_patience: 12
+  early_stopping_min_delta: 0.005
+
+  checkpoint_dir: "outputs/audio_token/runpod_e5_2cb_550_filtered_h100/checkpoints"
+  tensorboard_dir: "outputs/audio_token/runpod_e5_2cb_550_filtered_h100/tensorboard"
+
+  log_every_n_steps: 25
