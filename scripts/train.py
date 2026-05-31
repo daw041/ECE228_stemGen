@@ -24,6 +24,9 @@ def main():
     parser.add_argument("--overfit", action="store_true", help="Overfit mode: 5-10 clips")
     parser.add_argument("--epochs", type=int, default=None, help="Override number of epochs")
     parser.add_argument("--resume", default=None, help="Path to checkpoint to resume from")
+    parser.add_argument("--resume_model_only", action="store_true", help="Load only model weights from --resume")
+    parser.add_argument("--reset_best_on_resume", action="store_true", help="Reset best validation tracking after --resume")
+    parser.add_argument("--reset_epoch_on_resume", action="store_true", help="Restart epoch numbering at 1 after --resume")
     parser.add_argument("--early_stop_patience", type=int, default=None, help="Override early stopping patience")
     parser.add_argument("--device", default="cpu")
     args = parser.parse_args()
@@ -156,11 +159,21 @@ def main():
 
     start_epoch = 1
     if args.resume:
-        loaded_epoch, loaded_metrics = trainer.load_checkpoint(args.resume)
-        start_epoch = loaded_epoch + 1
-        best_val_loss = loaded_metrics.get("loss", best_val_loss)
-        best_epoch = loaded_epoch
+        loaded_epoch, loaded_metrics = trainer.load_checkpoint(
+            args.resume,
+            load_optimizer=not args.resume_model_only,
+        )
+        start_epoch = 1 if args.reset_epoch_on_resume else loaded_epoch + 1
+        if args.reset_best_on_resume:
+            print("Reset best validation tracking after resume.")
+        else:
+            best_val_loss = loaded_metrics.get("loss", best_val_loss)
+            best_epoch = loaded_epoch
         print(f"Resumed from {args.resume} at epoch {loaded_epoch}")
+        if args.resume_model_only:
+            print("Loaded model weights only; optimizer/scaler are freshly initialized.")
+        if args.reset_epoch_on_resume:
+            print("Restarting epoch numbering at 1.")
 
     for epoch in range(start_epoch, num_epochs + 1):
         train_metrics = trainer.train_epoch(train_loader, codec, epoch)

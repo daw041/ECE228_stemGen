@@ -210,10 +210,11 @@ class MaskedTokenTrainer:
             "metrics": metrics,
         }, path)
 
-    def load_checkpoint(self, path):
+    def load_checkpoint(self, path, load_optimizer=True):
         ckpt = torch.load(path, map_location=self.device)
         self.model.load_state_dict(ckpt["model_state_dict"])
-        self.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
-        if self.use_amp and ckpt.get("scaler_state_dict") is not None:
+        if load_optimizer:
+            self.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+        if load_optimizer and self.use_amp and ckpt.get("scaler_state_dict") is not None:
             self.scaler.load_state_dict(ckpt["scaler_state_dict"])
         return ckpt["epoch"], ckpt["metrics"]

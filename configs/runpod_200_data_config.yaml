@@ -1,0 +1,22 @@
+# RunPod 200-track audio-token experiment.
+data:
+  dataset: "slakh2100"
+  data_root: "dataset/audio_subset_200"
+  sample_rate: 24000
+  clip_duration: 10.0
+
+target_instrument: "bass"
+
+supported_instruments:
+  - bass
+  - drums
+  - piano
+  - guitar
+  - strings
+  - other
+
+context_mode: "mixture_minus_target"
+
+overfit_n_clips: 8
+train_n_clips: 3200
+val_n_clips: 640
