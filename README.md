@@ -25,6 +25,7 @@ docs/                    Notes, debugging guides, reproduction references
                           Chinese collaboration plan for the next experiments
 scripts/
   train.py               Train the audio-token masked Transformer
+  smoke_test_e5.py       Fast config/model/trainer/generation sanity test
   generate.py            Full-mask target-stem generation
   diagnose_audio_token.py Codec + partial-mask reconstruction diagnostics
   evaluate.py            Basic audio-token evaluation

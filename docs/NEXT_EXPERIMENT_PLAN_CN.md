@@ -183,7 +183,26 @@ val_n_clips: 120
 
 目标：确认代码、依赖、数据路径、GPU 都正常。
 
-命令：
+第一步先跑不依赖 EnCodec/数据集的代码结构测试：
+
+```bash
+python scripts/smoke_test_e5.py --device cpu --seq_len 64 --batch_size 2
+```
+
+如果服务器 CUDA 环境已经可用，再跑：
+
+```bash
+python scripts/smoke_test_e5.py --device cuda --seq_len 64 --batch_size 2
+```
+
+这一步只检查：
+
+- E5 配置能否正确加载。
+- 2-codebook 模型能否 forward。
+- multi-codebook masked CE 是否能反传。
+- generation 是否能清空所有 mask token。
+
+第二步再跑真实 codec/dataset 相关 overfit：
 
 ```bash
 pip install -r requirements.txt

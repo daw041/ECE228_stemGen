@@ -26,8 +26,9 @@ class MaskedTokenTrainer:
         self.model = model.to(device)
         self.device = device
         self.mask_ratio = mask_ratio
-        self.mask_ratio_min = mask_ratio_min
-        self.mask_ratio_max = mask_ratio_max
+        self.mask_ratio = float(mask_ratio)
+        self.mask_ratio_min = None if mask_ratio_min is None else float(mask_ratio_min)
+        self.mask_ratio_max = None if mask_ratio_max is None else float(mask_ratio_max)
         self.mask_token_id = model.mask_token_id
         if codebook_weights is None:
             codebook_weights = [1.0] * model.num_codebooks
@@ -37,7 +38,7 @@ class MaskedTokenTrainer:
             )
         self.codebook_weights = [float(w) for w in codebook_weights]
         self.optimizer = AdamW(
-            model.parameters(), lr=lr, weight_decay=weight_decay, betas=(0.9, 0.999)
+            model.parameters(), lr=float(lr), weight_decay=float(weight_decay), betas=(0.9, 0.999)
         )
 
     def _sample_mask_ratio(self) -> float:
