@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from src.model import StemGenModel
 from src.trainer import MaskedTokenTrainer
 from src.codec import load_codec
-from src.dataset import SlakhContextTargetDataset
+from src.dataset import CachedTokenDataset, SlakhContextTargetDataset
 
 
 def main():
@@ -43,17 +43,25 @@ def main():
     print(f"Device: {device}")
 
     mc = model_cfg["model"]
+    token_cache_root = data_cfg["data"].get("token_cache_root")
+    use_token_cache = bool(data_cfg["data"].get("use_token_cache", False) or token_cache_root)
 
-    # load codec with the same RVQ depth as the model
-    codec = load_codec(
-        num_codebooks=mc.get("num_codebooks", 1),
-        bandwidth=mc.get("codec_bandwidth"),
-        device=device,
-    )
-    print(
-        f"Codec loaded: {codec.sample_rate}Hz, {codec.num_codebooks} codebook(s), "
-        f"bandwidth={codec.bandwidth}kbps"
-    )
+    codec = None
+    if use_token_cache:
+        if not token_cache_root:
+            raise ValueError("data.token_cache_root is required when using token cache.")
+        print(f"Using precomputed token cache: {token_cache_root}")
+    else:
+        # load codec with the same RVQ depth as the model
+        codec = load_codec(
+            num_codebooks=mc.get("num_codebooks", 1),
+            bandwidth=mc.get("codec_bandwidth"),
+            device=device,
+        )
+        print(
+            f"Codec loaded: {codec.sample_rate}Hz, {codec.num_codebooks} codebook(s), "
+            f"bandwidth={codec.bandwidth}kbps"
+        )
 
     # build datasets
     n_train = (
@@ -66,32 +74,36 @@ def main():
         else data_cfg.get("val_n_clips", data_cfg["data"].get("val_n_clips", 20))
     )
 
-    train_ds = SlakhContextTargetDataset(
-        data_root=data_cfg["data"]["data_root"],
-        target_instrument=data_cfg["target_instrument"],
-        context_mode=data_cfg.get("context_mode", "mixture_minus_target"),
-        clip_duration=data_cfg["data"].get("clip_duration", 4.0),
-        sample_rate=data_cfg["data"].get("sample_rate", codec.sample_rate),
-        split="train",
-        max_clips=n_train,
-        min_target_rms_db=data_cfg["data"].get("min_target_rms_db"),
-        min_target_active_ratio=data_cfg["data"].get("min_target_active_ratio", 0.0),
-        target_active_threshold=data_cfg["data"].get("target_active_threshold", 1e-4),
-        max_clip_resample_attempts=data_cfg["data"].get("max_clip_resample_attempts", 20),
-    )
-    val_ds = SlakhContextTargetDataset(
-        data_root=data_cfg["data"]["data_root"],
-        target_instrument=data_cfg["target_instrument"],
-        context_mode=data_cfg.get("context_mode", "mixture_minus_target"),
-        clip_duration=data_cfg["data"].get("clip_duration", 4.0),
-        sample_rate=data_cfg["data"].get("sample_rate", codec.sample_rate),
-        split="val",
-        max_clips=n_val,
-        min_target_rms_db=data_cfg["data"].get("min_target_rms_db"),
-        min_target_active_ratio=data_cfg["data"].get("min_target_active_ratio", 0.0),
-        target_active_threshold=data_cfg["data"].get("target_active_threshold", 1e-4),
-        max_clip_resample_attempts=data_cfg["data"].get("max_clip_resample_attempts", 20),
-    )
+    if use_token_cache:
+        train_ds = CachedTokenDataset(token_cache_root, split="train")
+        val_ds = CachedTokenDataset(token_cache_root, split="val")
+    else:
+        train_ds = SlakhContextTargetDataset(
+            data_root=data_cfg["data"]["data_root"],
+            target_instrument=data_cfg["target_instrument"],
+            context_mode=data_cfg.get("context_mode", "mixture_minus_target"),
+            clip_duration=data_cfg["data"].get("clip_duration", 4.0),
+            sample_rate=data_cfg["data"].get("sample_rate", codec.sample_rate),
+            split="train",
+            max_clips=n_train,
+            min_target_rms_db=data_cfg["data"].get("min_target_rms_db"),
+            min_target_active_ratio=data_cfg["data"].get("min_target_active_ratio", 0.0),
+            target_active_threshold=data_cfg["data"].get("target_active_threshold", 1e-4),
+            max_clip_resample_attempts=data_cfg["data"].get("max_clip_resample_attempts", 20),
+        )
+        val_ds = SlakhContextTargetDataset(
+            data_root=data_cfg["data"]["data_root"],
+            target_instrument=data_cfg["target_instrument"],
+            context_mode=data_cfg.get("context_mode", "mixture_minus_target"),
+            clip_duration=data_cfg["data"].get("clip_duration", 4.0),
+            sample_rate=data_cfg["data"].get("sample_rate", codec.sample_rate),
+            split="val",
+            max_clips=n_val,
+            min_target_rms_db=data_cfg["data"].get("min_target_rms_db"),
+            min_target_active_ratio=data_cfg["data"].get("min_target_active_ratio", 0.0),
+            target_active_threshold=data_cfg["data"].get("target_active_threshold", 1e-4),
+            max_clip_resample_attempts=data_cfg["data"].get("max_clip_resample_attempts", 20),
+        )
 
     print(f"Train clips: {len(train_ds)}, Val clips: {len(val_ds)}")
 

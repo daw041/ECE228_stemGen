@@ -108,12 +108,16 @@ class MaskedTokenTrainer:
         pbar = tqdm(dataloader, desc=f"Epoch {epoch}")
         self.optimizer.zero_grad(set_to_none=True)
         for step, batch in enumerate(pbar, start=1):
-            ctx = batch["context"]
-            tgt = batch["target"]
             inst = batch["instrument"]
-            with torch.no_grad():
-                ctx_tok = codec.encode(ctx).to(self.device)
-                tgt_tok = codec.encode(tgt).to(self.device)
+            if "context_tokens" in batch and "target_tokens" in batch:
+                ctx_tok = batch["context_tokens"].to(self.device).long()
+                tgt_tok = batch["target_tokens"].to(self.device).long()
+            else:
+                ctx = batch["context"]
+                tgt = batch["target"]
+                with torch.no_grad():
+                    ctx_tok = codec.encode(ctx).to(self.device)
+                    tgt_tok = codec.encode(tgt).to(self.device)
             inst = inst.to(self.device)
             if ctx_tok.dim() == 2:
                 ctx_tok = ctx_tok.unsqueeze(0)
@@ -166,11 +170,15 @@ class MaskedTokenTrainer:
         cb_correct = [0.0 for _ in range(self.model.num_codebooks)]
         cb_total = [0 for _ in range(self.model.num_codebooks)]
         for batch in tqdm(dataloader, desc="Validation"):
-            ctx = batch["context"]
-            tgt = batch["target"]
             inst = batch["instrument"]
-            ctx_tok = codec.encode(ctx).to(self.device)
-            tgt_tok = codec.encode(tgt).to(self.device)
+            if "context_tokens" in batch and "target_tokens" in batch:
+                ctx_tok = batch["context_tokens"].to(self.device).long()
+                tgt_tok = batch["target_tokens"].to(self.device).long()
+            else:
+                ctx = batch["context"]
+                tgt = batch["target"]
+                ctx_tok = codec.encode(ctx).to(self.device)
+                tgt_tok = codec.encode(tgt).to(self.device)
             inst = inst.to(self.device)
             if ctx_tok.dim() == 2:
                 ctx_tok = ctx_tok.unsqueeze(0)

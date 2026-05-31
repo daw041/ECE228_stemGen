@@ -2,6 +2,7 @@
 import os
 import random
 import math
+import glob
 import torch
 from torch.utils.data import Dataset
 import torchaudio
@@ -153,8 +154,11 @@ class SlakhContextTargetDataset(Dataset):
                 "target": target_clip,
                 "instrument": INSTRUMENT_MAP[self.target_instrument],
                 "track_id": self.track_dirs[track_idx],
+                "start_sample": start,
             }
             is_active, rms, active_ratio = self._target_clip_is_active(target_clip)
+            sample["target_rms"] = rms
+            sample["target_active_ratio"] = active_ratio
             score = rms * max(active_ratio, 1e-6)
             if score > best_score:
                 best_score = score
@@ -169,6 +173,59 @@ class SlakhContextTargetDataset(Dataset):
         raise RuntimeError(
             f"No usable {self.target_instrument} clip found in {self.data_root}: {detail}"
         )
+
+
+class CachedTokenDataset(Dataset):
+    """Load precomputed context/target codec-token shards."""
+
+    def __init__(self, cache_root: str, split: str = "train"):
+        self.cache_root = cache_root
+        self.split = split
+        self.split_dir = os.path.join(cache_root, split)
+        self.shard_paths = sorted(glob.glob(os.path.join(self.split_dir, "*.pt")))
+        if not self.shard_paths:
+            raise FileNotFoundError(f"No token cache shards found in {self.split_dir}")
+
+        contexts = []
+        targets = []
+        instruments = []
+        track_ids = []
+        starts = []
+        rms_values = []
+        active_ratios = []
+        for path in self.shard_paths:
+            shard = torch.load(path, map_location="cpu")
+            contexts.append(shard["context_tokens"])
+            targets.append(shard["target_tokens"])
+            instruments.append(shard["instrument"])
+            track_ids.extend(shard.get("track_id", [""] * shard["context_tokens"].shape[0]))
+            starts.extend(shard.get("start_sample", [-1] * shard["context_tokens"].shape[0]))
+            rms_values.extend(shard.get("target_rms", [float("nan")] * shard["context_tokens"].shape[0]))
+            active_ratios.extend(
+                shard.get("target_active_ratio", [float("nan")] * shard["context_tokens"].shape[0])
+            )
+
+        self.context_tokens = torch.cat(contexts, dim=0)
+        self.target_tokens = torch.cat(targets, dim=0)
+        self.instruments = torch.cat(instruments, dim=0).long()
+        self.track_ids = track_ids
+        self.starts = starts
+        self.rms_values = rms_values
+        self.active_ratios = active_ratios
+
+    def __len__(self):
+        return int(self.context_tokens.shape[0])
+
+    def __getitem__(self, idx: int):
+        return {
+            "context_tokens": self.context_tokens[idx].long(),
+            "target_tokens": self.target_tokens[idx].long(),
+            "instrument": self.instruments[idx],
+            "track_id": self.track_ids[idx],
+            "start_sample": self.starts[idx],
+            "target_rms": self.rms_values[idx],
+            "target_active_ratio": self.active_ratios[idx],
+        }
 
 
 def load_config(config_path: str) -> dict:

@@ -1,0 +1,7 @@
+# Train from fixed precomputed EnCodec-token shards for the 550-track run.
+data:
+  use_token_cache: true
+  token_cache_root: "outputs/audio_token/cache_550_26400_e5_2cb"
+
+target_instrument: "bass"
+context_mode: "mixture_minus_target"
