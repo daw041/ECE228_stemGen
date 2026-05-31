@@ -125,6 +125,10 @@ def main():
         sample_rate=data_cfg["data"].get("sample_rate", codec.sample_rate),
         split="val",
         max_clips=max(args.sample_index + 1, 8),
+        min_target_rms_db=data_cfg["data"].get("min_target_rms_db"),
+        min_target_active_ratio=data_cfg["data"].get("min_target_active_ratio", 0.0),
+        target_active_threshold=data_cfg["data"].get("target_active_threshold", 1e-4),
+        max_clip_resample_attempts=data_cfg["data"].get("max_clip_resample_attempts", 20),
     )
     sample = val_ds[args.sample_index]
     context = sample["context"].unsqueeze(0)
