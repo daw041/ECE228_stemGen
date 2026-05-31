@@ -21,6 +21,8 @@ reproduction path is the audio-token branch.
 ```text
 configs/                 Audio-token training/model/data configs
 docs/                    Notes, debugging guides, reproduction references
+  NEXT_EXPERIMENT_PLAN_CN.md
+                          Chinese collaboration plan for the next experiments
 scripts/
   train.py               Train the audio-token masked Transformer
   generate.py            Full-mask target-stem generation
