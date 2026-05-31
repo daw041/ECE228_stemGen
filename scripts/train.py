@@ -24,6 +24,7 @@ def main():
     parser.add_argument("--overfit", action="store_true", help="Overfit mode: 5-10 clips")
     parser.add_argument("--epochs", type=int, default=None, help="Override number of epochs")
     parser.add_argument("--resume", default=None, help="Path to checkpoint to resume from")
+    parser.add_argument("--early_stop_patience", type=int, default=None, help="Override early stopping patience")
     parser.add_argument("--device", default="cpu")
     args = parser.parse_args()
 
@@ -130,7 +131,7 @@ def main():
     )
 
     # logging
-    writer = SummaryWriter(log_dir="outputs/tensorboard")
+    writer = SummaryWriter(log_dir=tc.get("tensorboard_dir", "outputs/tensorboard"))
     checkpoint_dir = tc.get("checkpoint_dir", "outputs/checkpoints")
     os.makedirs(checkpoint_dir, exist_ok=True)
 
@@ -140,11 +141,25 @@ def main():
     print(f"\n{mode_str}: {num_epochs} epochs")
 
     best_val_loss = float("inf")
+    best_epoch = 0
+    no_improve_epochs = 0
+    early_stop_patience = args.early_stop_patience
+    if early_stop_patience is None:
+        early_stop_patience = tc.get("early_stopping_patience", tc.get("early_stop_patience", 0))
+    early_stop_patience = int(early_stop_patience or 0)
+    early_stop_min_delta = float(tc.get("early_stopping_min_delta", tc.get("early_stop_min_delta", 0.0)))
+    if early_stop_patience > 0:
+        print(
+            f"Early stopping: patience={early_stop_patience}, "
+            f"min_delta={early_stop_min_delta}"
+        )
+
     start_epoch = 1
     if args.resume:
         loaded_epoch, loaded_metrics = trainer.load_checkpoint(args.resume)
         start_epoch = loaded_epoch + 1
         best_val_loss = loaded_metrics.get("loss", best_val_loss)
+        best_epoch = loaded_epoch
         print(f"Resumed from {args.resume} at epoch {loaded_epoch}")
 
     for epoch in range(start_epoch, num_epochs + 1):
@@ -173,15 +188,29 @@ def main():
                 epoch, train_metrics
             )
 
-        if val_metrics["loss"] < best_val_loss:
+        improved = val_metrics["loss"] < best_val_loss - early_stop_min_delta
+        if improved:
             best_val_loss = val_metrics["loss"]
+            best_epoch = epoch
+            no_improve_epochs = 0
             trainer.save_checkpoint(
                 os.path.join(checkpoint_dir, "best.pt"),
                 epoch, val_metrics
             )
+            print(f"  New best checkpoint saved (val_loss={best_val_loss:.4f})")
+        else:
+            no_improve_epochs += 1
+            if early_stop_patience > 0:
+                print(
+                    f"  No val improvement for {no_improve_epochs}/"
+                    f"{early_stop_patience} epoch(s); best epoch={best_epoch}"
+                )
+                if no_improve_epochs >= early_stop_patience:
+                    print(f"Early stopping at epoch {epoch}.")
+                    break
 
     writer.close()
-    print(f"\nTraining complete. Best val loss: {best_val_loss:.4f}")
+    print(f"\nTraining complete. Best epoch: {best_epoch}, best val loss: {best_val_loss:.4f}")
     print(f"Checkpoint: {checkpoint_dir}/best.pt")
 
 

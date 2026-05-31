@@ -1,0 +1,27 @@
+# Conservative local RTX 3050 Laptop 4GB training configuration.
+training:
+  batch_size: 2
+  num_workers: 0
+  num_epochs: 200
+  learning_rate: 3e-4
+  weight_decay: 1e-5
+  use_amp: true
+  gradient_accumulation_steps: 4
+
+  mask_ratio: 0.75
+  mask_ratio_min: 0.50
+  mask_ratio_max: 1.00
+  mask_token_id: 1024
+  codebook_weights: [1.0, 1.0]
+
+  optimizer: "adamw"
+  betas: [0.9, 0.999]
+
+  early_stopping_patience: 12
+  early_stopping_min_delta: 0.01
+
+  save_every_n_epochs: 10
+  checkpoint_dir: "outputs/audio_token/local_550_e5_2cb/checkpoints"
+  tensorboard_dir: "outputs/audio_token/local_550_e5_2cb/tensorboard"
+
+  log_every_n_steps: 50
