@@ -48,7 +48,6 @@ class SlakhContextTargetDataset(Dataset):
         self.max_clip_resample_attempts = max(1, int(max_clip_resample_attempts))
 
         self.track_dirs = self._scan_tracks()
-        self.clips_per_track = max(1, max_clips // max(1, len(self.track_dirs)))
         self.clip_samples = int(clip_duration * sample_rate)
 
     def _scan_tracks(self):
@@ -67,7 +66,9 @@ class SlakhContextTargetDataset(Dataset):
             return track_dirs[split_idx:]
 
     def __len__(self):
-        return min(self.max_clips, len(self.track_dirs) * self.clips_per_track)
+        if not self.track_dirs:
+            return 0
+        return self.max_clips
 
     def _load_stem(self, track_dir: str, stem_type: str) -> torch.Tensor:
         stem_path = os.path.join(track_dir, f"{stem_type}.wav")
