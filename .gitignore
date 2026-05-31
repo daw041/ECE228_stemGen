@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Environments
+.venv/
+venv/
+env/
+*.egg-info/
+
+# Local IDE / agent metadata
+.claude/
+.omc/
+.vscode/
+.idea/
+
+# Data and large experiment artifacts
+dataset/*
+!dataset/README.md
+outputs/*
+!outputs/**/
+!outputs/**/*.md
+!outputs/README.md
+
+# Model/audio artifacts
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.wav
+*.flac
+*.mp3
+*.mid
+*.midi
+*.png
+*.jpg
+*.jpeg
+*.npy
+*.npz
+*.zip
+*.tmp
+*.log
+
+# OS
+Thumbs.db
+.DS_Store

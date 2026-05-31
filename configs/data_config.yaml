@@ -1,0 +1,31 @@
+# Data configuration for StemGen reproduction
+data:
+  dataset: "slakh2100"
+  # Path to extracted Slakh2100 data
+  data_root: "E:/datasets/slakh2100"
+  sample_rate: 24000
+  clip_duration: 10.0  # seconds; closer to StemGen's 20s crops while still practical
+
+target_instrument: "bass"
+
+# Instrument vocabulary (same order as in model config)
+supported_instruments:
+  - bass       # 0
+  - drums      # 1
+  - piano      # 2
+  - guitar     # 3
+  - strings    # 4
+  - other      # 5
+
+# Context construction mode
+context_mode: "mixture_minus_target"
+# future options:
+#   random_stem_subset
+
+# For random_stem_subset mode (future):
+# context_stem_selection: ["drums", "piano"]
+
+# Training data size
+overfit_n_clips: 8
+train_n_clips: 1000
+val_n_clips: 120

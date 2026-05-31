@@ -1,0 +1,23 @@
+# Model configuration for StemGen reproduction
+model:
+  # Small-but-faithful audio-token baseline for the next reproduction run.
+  # A 4090-class GPU can increase these values further; keep max_seq_len >=
+  # codec_frame_rate * clip_duration.
+  embedding_dim: 512
+  num_layers: 8
+  num_heads: 8
+  dropout: 0.1
+  feedforward_dim: 2048
+  max_seq_len: 1024
+
+  # Codec token vocabulary
+  codec_vocab_size: 1024  # EnCodec coarse codebook size
+  num_codebooks: 2        # E5 target: align trainer/generator/decoder on 2 RVQ levels
+  codec_bandwidth: 1.5    # 24kHz EnCodec setting that covers the first 2 RVQ levels
+
+  # Instrument conditioning
+  num_instruments: 6
+  instrument_embedding_dim: 64
+
+  # Two-stream fusion mode: "concat" or "sum"
+  fusion_mode: "concat"
