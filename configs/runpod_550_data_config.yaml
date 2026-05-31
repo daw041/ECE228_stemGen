@@ -1,7 +1,7 @@
-# Local 550-track audio-token sanity experiment for RTX 3050.
-# This is intentionally small and should not be used as the fair 550-track
-# comparison against RunPod 200-track runs. Use runpod_550_data_config.yaml
-# for the full filtered 550-track experiment.
+# RunPod 550-track filtered audio-token experiment.
+# This matches the 200-track run's train sampling density:
+# 200-run train split: 160 tracks, 3200 clips -> 20 clips/track.
+# 550-run train split: 440 tracks, 8800 clips -> 20 clips/track.
 data:
   dataset: "slakh2100"
   data_root: "dataset/audio_subset_550"
@@ -25,5 +25,5 @@ supported_instruments:
 context_mode: "mixture_minus_target"
 
 overfit_n_clips: 8
-train_n_clips: 1100
-val_n_clips: 220
+train_n_clips: 8800
+val_n_clips: 1760
