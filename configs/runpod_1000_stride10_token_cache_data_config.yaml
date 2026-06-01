@@ -1,0 +1,7 @@
+# Train from fixed non-overlapping 10s EnCodec-token shards for the 1000-track run.
+data:
+  use_token_cache: true
+  token_cache_root: "outputs/audio_token/cache_1000_stride10_e5_2cb"
+
+target_instrument: "bass"
+context_mode: "mixture_minus_target"
