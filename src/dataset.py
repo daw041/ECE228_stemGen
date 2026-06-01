@@ -71,11 +71,17 @@ class SlakhContextTargetDataset(Dataset):
             return 0
         return self.max_clips
 
-    def _load_stem(self, track_dir: str, stem_type: str) -> torch.Tensor:
+    def _stem_path(self, track_dir: str, stem_type: str):
         stem_path = os.path.join(track_dir, f"{stem_type}.wav")
         if not os.path.exists(stem_path):
             stem_path = os.path.join(track_dir, f"{stem_type}.flac")
         if not os.path.exists(stem_path):
+            return None
+        return stem_path
+
+    def _load_stem(self, track_dir: str, stem_type: str) -> torch.Tensor:
+        stem_path = self._stem_path(track_dir, stem_type)
+        if stem_path is None:
             return None
         wav, sr = torchaudio.load(stem_path)
         if sr != self.sample_rate:
@@ -173,6 +179,119 @@ class SlakhContextTargetDataset(Dataset):
         raise RuntimeError(
             f"No usable {self.target_instrument} clip found in {self.data_root}: {detail}"
         )
+
+
+class SlakhFixedWindowDataset(SlakhContextTargetDataset):
+    """Deterministic fixed-stride context-target windows.
+
+    Unlike SlakhContextTargetDataset, this dataset does not retry random starts.
+    It exposes every stride window with activity metadata so cache builders can
+    filter inactive target windows without hidden resampling.
+    """
+
+    def __init__(
+        self,
+        *args,
+        stride_seconds: float = 5.0,
+        max_clips_per_track: int = None,
+        **kwargs,
+    ):
+        super().__init__(*args, max_clip_resample_attempts=1, **kwargs)
+        self.stride_samples = max(1, int(float(stride_seconds) * self.sample_rate))
+        self.max_clips_per_track = max_clips_per_track
+        self.windows = self._build_windows()
+
+    def _target_length_at_sample_rate(self, track_dir: str):
+        stem_path = self._stem_path(track_dir, self.target_instrument)
+        if stem_path is None:
+            return None
+        try:
+            info = torchaudio.info(stem_path)
+            return int(info.num_frames * self.sample_rate / info.sample_rate)
+        except Exception:
+            wav = self._load_stem(track_dir, self.target_instrument)
+            return None if wav is None else int(wav.shape[1])
+
+    def _select_starts(self, starts):
+        if self.max_clips_per_track is None or len(starts) <= self.max_clips_per_track:
+            return starts
+        if self.max_clips_per_track <= 1:
+            return [starts[0]]
+        selected = []
+        last = len(starts) - 1
+        for i in range(self.max_clips_per_track):
+            idx = round(i * last / (self.max_clips_per_track - 1))
+            selected.append(starts[idx])
+        return selected
+
+    def _build_windows(self):
+        windows = []
+        for track_name in self.track_dirs:
+            track_dir = os.path.join(self.data_root, track_name)
+            total_samples = self._target_length_at_sample_rate(track_dir)
+            if total_samples is None:
+                continue
+            if total_samples <= self.clip_samples:
+                starts = [0]
+            else:
+                starts = list(range(0, total_samples - self.clip_samples + 1, self.stride_samples))
+                final_start = total_samples - self.clip_samples
+                if starts[-1] != final_start:
+                    starts.append(final_start)
+            for start in self._select_starts(starts):
+                windows.append((track_name, int(start)))
+        return windows
+
+    def __len__(self):
+        return len(self.windows)
+
+    def __getitem__(self, idx: int):
+        track_name, requested_start = self.windows[idx]
+        track_dir = os.path.join(self.data_root, track_name)
+
+        stems = {}
+        for inst in INSTRUMENT_MAP:
+            wav = self._load_stem(track_dir, inst)
+            if wav is not None:
+                stems[inst] = wav
+
+        if self.target_instrument not in stems:
+            raise RuntimeError(f"Missing {self.target_instrument} stem for {track_name}")
+
+        target_wav = stems[self.target_instrument]
+        if self.context_mode == "mixture_minus_target":
+            mix_wav = self._load_stem(track_dir, "mix")
+            if mix_wav is not None:
+                min_len = min(mix_wav.shape[1], target_wav.shape[1])
+                context_wav = mix_wav[:, :min_len] - target_wav[:, :min_len]
+                target_wav = target_wav[:, :min_len]
+            else:
+                other_stems = [w for name, w in stems.items() if name != self.target_instrument]
+                if not other_stems:
+                    raise RuntimeError(f"No context stems found for {track_name}")
+                context_wav = sum(other_stems)
+        else:
+            context_wav = sum(stems.values())
+
+        total_samples = min(w.shape[1] for w in [context_wav, target_wav])
+        if total_samples <= self.clip_samples:
+            start = 0
+        else:
+            start = min(requested_start, total_samples - self.clip_samples)
+
+        context_clip = context_wav[:, start:start + self.clip_samples]
+        target_clip = target_wav[:, start:start + self.clip_samples]
+        is_active, rms, active_ratio = self._target_clip_is_active(target_clip)
+        return {
+            "context": context_clip,
+            "target": target_clip,
+            "instrument": INSTRUMENT_MAP[self.target_instrument],
+            "track_id": track_name,
+            "start_sample": start,
+            "target_rms": rms,
+            "target_active_ratio": active_ratio,
+            "is_active": is_active,
+        }
 
 
 class CachedTokenDataset(Dataset):

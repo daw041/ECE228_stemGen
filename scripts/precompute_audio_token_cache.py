@@ -16,21 +16,35 @@ from tqdm import tqdm
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.codec import load_codec
-from src.dataset import SlakhContextTargetDataset
+from src.dataset import SlakhContextTargetDataset, SlakhFixedWindowDataset
 
 
-def _build_dataset(data_cfg, split, n_clips, sample_rate):
+def _common_dataset_kwargs(data_cfg, split, sample_rate):
+    return {
+        "data_root": data_cfg["data"]["data_root"],
+        "target_instrument": data_cfg["target_instrument"],
+        "context_mode": data_cfg.get("context_mode", "mixture_minus_target"),
+        "clip_duration": data_cfg["data"].get("clip_duration", 4.0),
+        "sample_rate": data_cfg["data"].get("sample_rate", sample_rate),
+        "split": split,
+        "min_target_rms_db": data_cfg["data"].get("min_target_rms_db"),
+        "min_target_active_ratio": data_cfg["data"].get("min_target_active_ratio", 0.0),
+        "target_active_threshold": data_cfg["data"].get("target_active_threshold", 1e-4),
+    }
+
+
+def _build_dataset(data_cfg, split, n_clips, sample_rate, args):
+    kwargs = _common_dataset_kwargs(data_cfg, split, sample_rate)
+    if args.sampling_mode == "stride":
+        return SlakhFixedWindowDataset(
+            **kwargs,
+            max_clips=n_clips or 1,
+            stride_seconds=args.stride_seconds,
+            max_clips_per_track=args.max_clips_per_track,
+        )
     return SlakhContextTargetDataset(
-        data_root=data_cfg["data"]["data_root"],
-        target_instrument=data_cfg["target_instrument"],
-        context_mode=data_cfg.get("context_mode", "mixture_minus_target"),
-        clip_duration=data_cfg["data"].get("clip_duration", 4.0),
-        sample_rate=data_cfg["data"].get("sample_rate", sample_rate),
-        split=split,
+        **kwargs,
         max_clips=n_clips,
-        min_target_rms_db=data_cfg["data"].get("min_target_rms_db"),
-        min_target_active_ratio=data_cfg["data"].get("min_target_active_ratio", 0.0),
-        target_active_threshold=data_cfg["data"].get("target_active_threshold", 1e-4),
         max_clip_resample_attempts=data_cfg["data"].get("max_clip_resample_attempts", 20),
     )
 
@@ -56,7 +70,20 @@ def _write_split(split, dataset, codec, out_dir, batch_size, num_workers, shard_
     pending = []
     shard_idx = 0
     n_items = 0
+    n_seen = 0
+    n_inactive = 0
     for batch in tqdm(loader, desc=f"Precompute {split}"):
+        n_seen += int(batch["context"].shape[0])
+        if "is_active" in batch:
+            active_mask = batch["is_active"].bool()
+            n_inactive += int((~active_mask).sum().item())
+            if int(active_mask.sum().item()) == 0:
+                continue
+            batch = {
+                key: (value[active_mask] if torch.is_tensor(value) else [v for v, keep in zip(value, active_mask.tolist()) if keep])
+                for key, value in batch.items()
+                if key != "is_active"
+            }
         context_tokens = codec.encode(batch["context"]).cpu().short()
         target_tokens = codec.encode(batch["target"]).cpu().short()
         instruments = batch["instrument"].cpu().long()
@@ -81,7 +108,7 @@ def _write_split(split, dataset, codec, out_dir, batch_size, num_workers, shard_
         _flush_shard(split_dir, shard_idx, pending)
         shard_idx += 1
 
-    return {"count": n_items, "num_shards": shard_idx}
+    return {"count": n_items, "seen": n_seen, "inactive_filtered": n_inactive, "num_shards": shard_idx}
 
 
 def _flush_shard(split_dir, shard_idx, samples):
@@ -110,6 +137,9 @@ def main():
     parser.add_argument("--seed", type=int, default=228)
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--sampling_mode", choices=["random", "stride"], default="random")
+    parser.add_argument("--stride_seconds", type=float, default=5.0)
+    parser.add_argument("--max_clips_per_track", type=int, default=None)
     args = parser.parse_args()
 
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir) and not args.overwrite:
@@ -145,9 +175,12 @@ def main():
 
     train_clips = args.train_clips or data_cfg.get("train_n_clips", data_cfg["data"].get("train_n_clips"))
     val_clips = args.val_clips or data_cfg.get("val_n_clips", data_cfg["data"].get("val_n_clips"))
-    train_ds = _build_dataset(data_cfg, "train", train_clips, codec.sample_rate)
-    val_ds = _build_dataset(data_cfg, "val", val_clips, codec.sample_rate)
-    print(f"Precomputing train={len(train_ds)} clips, val={len(val_ds)} clips")
+    train_ds = _build_dataset(data_cfg, "train", train_clips, codec.sample_rate, args)
+    val_ds = _build_dataset(data_cfg, "val", val_clips, codec.sample_rate, args)
+    print(
+        f"Precomputing train={len(train_ds)} candidates, val={len(val_ds)} candidates "
+        f"(sampling_mode={args.sampling_mode})"
+    )
 
     manifest = {
         "created_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
@@ -160,6 +193,9 @@ def main():
         "clip_duration": data_cfg["data"].get("clip_duration", 4.0),
         "target_instrument": data_cfg["target_instrument"],
         "context_mode": data_cfg.get("context_mode", "mixture_minus_target"),
+        "sampling_mode": args.sampling_mode,
+        "stride_seconds": args.stride_seconds if args.sampling_mode == "stride" else None,
+        "max_clips_per_track": args.max_clips_per_track if args.sampling_mode == "stride" else None,
         "splits": {},
     }
     manifest["splits"]["train"] = _write_split(

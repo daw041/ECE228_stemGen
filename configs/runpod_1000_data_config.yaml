@@ -1,0 +1,26 @@
+# RunPod 1000-track filtered audio-token experiment.
+data:
+  dataset: "slakh2100"
+  data_root: "dataset/audio_subset_1000"
+  sample_rate: 24000
+  clip_duration: 10.0
+  min_target_rms_db: -50.0
+  min_target_active_ratio: 0.05
+  target_active_threshold: 1e-4
+  max_clip_resample_attempts: 30
+
+target_instrument: "bass"
+
+supported_instruments:
+  - bass
+  - drums
+  - piano
+  - guitar
+  - strings
+  - other
+
+context_mode: "mixture_minus_target"
+
+overfit_n_clips: 8
+train_n_clips: 1
+val_n_clips: 1
