@@ -21,10 +21,13 @@ reproduction path is the audio-token branch.
 ```text
 configs/                 Audio-token training/model/data configs
 docs/                    Notes, debugging guides, reproduction references
+  LATEST_AUDIO_TOKEN_RESULTS_CN.md
+                          Latest Chinese summary of audio-token experiments
   NEXT_EXPERIMENT_PLAN_CN.md
                           Chinese collaboration plan for the next experiments
   RUNPOD_DEPLOYMENT_CN.md
                           RunPod setup, data prep, training, diagnostics guide
+presentation/            3-minute highlight slides and speaker script
 scripts/
   train.py               Train the audio-token masked Transformer
   smoke_test_e5.py       Fast config/model/trainer/generation sanity test
@@ -46,7 +49,7 @@ dataset/                 Local datasets, ignored
 
 ## Current Audio-Token Baseline
 
-The current default configs are set up for the next faithful small-scale run:
+The current default configs are set up for a faithful small-scale run:
 
 - 24 kHz EnCodec wrapper
 - 2 RVQ codebooks
@@ -58,6 +61,29 @@ The current default configs are set up for the next faithful small-scale run:
 This is intentionally much smaller than the paper's model, which used a
 32 kHz EnCodec tokenizer with 4 codebooks and a roughly 250M parameter
 LLaMA-style Transformer.
+
+## Latest Results
+
+The strongest current run is the 1000-track fixed-stride cached experiment:
+
+| Run | Clips | Sampling | Best Val Loss | Best Val Acc | Best Epoch |
+|---|---:|---|---:|---:|---:|
+| 550 cached | 26,400 | cached sampled clips | 3.4507 | 0.521 | 56 |
+| 1000 stride10 cached | 22,928 | non-overlapping 10s windows | 3.0279 | 0.572 | 19 |
+
+Compared with the 550-track run, the 1000-track stride10 run reduces best
+validation loss by about 12.3%.  Qualitatively, partial-mask reconstruction is
+no longer pure noise and shows audible/spectral structure, while full 100% mask
+generation remains the main bottleneck.
+
+Detailed Chinese notes:
+
+[docs/LATEST_AUDIO_TOKEN_RESULTS_CN.md](docs/LATEST_AUDIO_TOKEN_RESULTS_CN.md)
+
+3-minute highlight presentation materials:
+
+[presentation/highlight_slides.md](presentation/highlight_slides.md) and
+[presentation/speaker_script_cn.md](presentation/speaker_script_cn.md)
 
 ## Setup
 

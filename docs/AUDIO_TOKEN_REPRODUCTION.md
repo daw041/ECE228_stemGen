@@ -37,3 +37,27 @@ context + partially masked target tokens -> reconstructed target audio
 
 Only after low-mask partial reconstruction works should full-mask generation be
 treated as the main bottleneck.
+
+## Latest Experiment Summary
+
+As of 2026-06-04, the strongest result is the 1000-track fixed-stride cached
+run:
+
+| Run | Clips | Sampling | Best Val Loss | Best Val Acc | Best Epoch |
+|---|---:|---|---:|---:|---:|
+| 550 cached | 26,400 | cached sampled clips | 3.4507 | 0.521 | 56 |
+| 1000 stride10 cached | 22,928 | non-overlapping 10s windows | 3.0279 | 0.572 | 19 |
+
+The 1000-track run used fixed 10-second windows, filtered inactive target
+segments, cached EnCodec tokens before training, and warm-started from the
+550-track best checkpoint.  It improves validation loss by about 12.3% over the
+550-track run.
+
+The main qualitative finding is that partial-mask reconstruction can produce
+audible and spectrally structured bass, while full 100% mask generation is still
+unstable.  This suggests that the small reproduction learns token-level
+reconstruction but still needs stronger decoding and conditioning to match the
+paper-level full stem generation behavior.
+
+See `docs/LATEST_AUDIO_TOKEN_RESULTS_CN.md` for the full Chinese experiment
+summary and `presentation/` for the 3-minute highlight talk materials.
