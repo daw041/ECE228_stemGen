@@ -19,6 +19,14 @@ env/
 .vscode/
 .idea/
 
+# Local-only project notes kept off the submission-facing repository
+DECISIONS.md
+PLAN_MIDI_TRAINING.md
+proj_discription.md
+StemGen.pdf
+docs/*_CN.md
+docs/PROJECT_EXPERIMENT_SUMMARY_CN.md
+
 # Data and large experiment artifacts
 dataset/*
 !dataset/README.md
@@ -27,6 +35,7 @@ outputs/**/*
 !outputs/**/
 !outputs/**/*.md
 !outputs/README.md
+outputs/midi/*.md
 
 # Model/audio artifacts
 *.pt

@@ -1,90 +1,69 @@
-# StemGen Reproduction Project
+# StemGen Reproduction: Context-Aware Bass Stem Generation
 
-Small-scale reproduction of **StemGen: A music generation model that listens**
-for a course project.  The main track is an audio-token, context-aware stem
-generation pipeline:
-
-```text
-context audio = mixture - target stem
-target stem audio
-        -> EnCodec RVQ tokens
-        -> non-autoregressive masked-token Transformer
-        -> iterative mask-predict decoding
-        -> generated target stem audio
-```
-
-The repository also contains exploratory MIDI experiments, but the primary
-reproduction path is the audio-token branch.
-
-## Repository Layout
+This repository contains a course-scale reproduction of **StemGen: A music
+generation model that listens**. The goal is to generate a bass stem from the
+rest of the song:
 
 ```text
-configs/                 Audio-token training/model/data configs
-docs/                    Notes, debugging guides, reproduction references
-  LATEST_AUDIO_TOKEN_RESULTS_CN.md
-                          Latest Chinese summary of audio-token experiments
-  NEXT_EXPERIMENT_PLAN_CN.md
-                          Chinese collaboration plan for the next experiments
-  RUNPOD_DEPLOYMENT_CN.md
-                          RunPod setup, data prep, training, diagnostics guide
-presentation/            3-minute highlight slides and speaker script
-scripts/
-  train.py               Train the audio-token masked Transformer
-  smoke_test_e5.py       Fast config/model/trainer/generation sanity test
-  smoke_test_e5_data.py  Real extracted-audio sanity test
-  extract_audio_subset.py
-                          Extract a tiny audio-token subset from archive.zip
-  generate.py            Full-mask target-stem generation
-  diagnose_audio_token.py Codec + partial-mask reconstruction diagnostics
-  evaluate.py            Basic audio-token evaluation
-  train_midi*.py         Exploratory MIDI branch scripts
-src/
-  codec.py               EnCodec wrapper with aligned RVQ codebook handling
-  dataset.py             Slakh context-target dataset
-  model.py               StemGen-style masked-token Transformer
-  trainer.py             Multi-codebook masked-token trainer
-outputs/                 Local experiment artifacts, ignored except markdown
-dataset/                 Local datasets, ignored
+context audio = mixture - bass
+target audio  = bass stem
 ```
 
-## Current Audio-Token Baseline
+The main system follows the audio-token route from StemGen:
 
-The current default configs are set up for a faithful small-scale run:
+```text
+waveform audio
+  -> EnCodec RVQ tokens
+  -> masked-token Transformer
+  -> iterative mask-predict generation
+  -> generated bass waveform
+```
 
-- 24 kHz EnCodec wrapper
-- 2 RVQ codebooks
-- 10 second clips
-- 8-layer Transformer, 512 hidden size
-- variable target-mask ratio from 0.50 to 1.00
-- multi-codebook cross-entropy over masked positions
+The final report is in [`report/final.pdf`](report/final.pdf).
 
-This is intentionally much smaller than the paper's model, which used a
-32 kHz EnCodec tokenizer with 4 codebooks and a roughly 250M parameter
-LLaMA-style Transformer.
+## What Is Implemented
 
-## Latest Results
+- 24 kHz EnCodec wrapper for waveform-to-token and token-to-waveform conversion
+- 2-codebook RVQ token pipeline with consistent codebook handling
+- Slakh-style context/target dataset construction
+- Non-autoregressive masked-token Transformer conditioned on instrument id
+- Multi-codebook masked cross-entropy training
+- Iterative mask-predict generation, codebook by codebook
+- Token-cache precomputation for larger H100 runs
+- Diagnostics for codec reconstruction, partial-mask reconstruction, and full generation
+- Exploratory MIDI baselines kept as secondary experiments
 
-The strongest current run is the 1000-track fixed-stride cached experiment:
+## Main Result
+
+The strongest run is the 1000-track fixed-stride cached audio-token experiment:
 
 | Run | Clips | Sampling | Best Val Loss | Best Val Acc | Best Epoch |
 |---|---:|---|---:|---:|---:|
 | 550 cached | 26,400 | cached sampled clips | 3.4507 | 0.521 | 56 |
-| 1000 stride10 cached | 22,928 | non-overlapping 10s windows | 3.0279 | 0.572 | 19 |
+| 1000 stride10 cached | 22,928 | non-overlapping 10 s windows | 3.0279 | 0.572 | 19 |
 
-Compared with the 550-track run, the 1000-track stride10 run reduces best
-validation loss by about 12.3%.  Qualitatively, partial-mask reconstruction is
-no longer pure noise and shows audible/spectral structure, while full 100% mask
-generation remains the main bottleneck.
+The 1000-track run reduces best validation loss by about 12.3% compared with
+the 550-track cached baseline. Qualitatively, partial-mask reconstruction shows
+clearer bass structure than early runs, while full 100% mask generation remains
+the main bottleneck.
 
-Detailed Chinese notes:
+## Repository Layout
 
-[docs/LATEST_AUDIO_TOKEN_RESULTS_CN.md](docs/LATEST_AUDIO_TOKEN_RESULTS_CN.md)
-
-3-minute highlight presentation materials:
-
-[presentation/stemgen_highlight_3min.pptx](presentation/stemgen_highlight_3min.pptx),
-[presentation/highlight_slides.md](presentation/highlight_slides.md), and
-[presentation/speaker_script_cn.md](presentation/speaker_script_cn.md)
+```text
+configs/                 Training, data, and model configs
+dataset/                 Local datasets only; ignored except README
+docs/                    Reproduction notes and debugging guides
+outputs/                 Local experiment artifacts; ignored except selected markdown
+presentation/            3-minute highlight presentation materials
+report/                  Final report source, figures, and compiled PDF
+scripts/                 Training, generation, cache, evaluation, and smoke-test scripts
+src/                     Core Python package
+  codec.py               EnCodec RVQ wrapper
+  dataset.py             Slakh context-target datasets and token-cache dataset
+  model.py               StemGen-style masked-token Transformer
+  trainer.py             Multi-codebook masked-token trainer
+  midi/                  Exploratory MIDI branch modules
+```
 
 ## Setup
 
@@ -94,9 +73,28 @@ conda activate stemgen
 pip install -r requirements.txt
 ```
 
-The dataset path is configured in `configs/data_config.yaml`.
+The code expects PyTorch and torchaudio with a working CPU or CUDA install. A
+GPU is strongly recommended for real EnCodec/token training, but the synthetic
+smoke test below can run on CPU.
 
-For local testing without unpacking the full archive:
+## Quick Verification
+
+Run this first to check the model, trainer, masking loss, and iterative
+generation code without needing Slakh or EnCodec:
+
+```bash
+python scripts/smoke_test_e5.py --device cpu
+```
+
+Expected outcome: the script builds the model, computes a synthetic
+multi-codebook masked loss, and runs a short generation pass without errors.
+
+## Data
+
+Large datasets are not committed. Put extracted Slakh/BabySlakh-style data under
+`dataset/` or edit `configs/data_config.yaml`.
+
+For a small local subset from an archive:
 
 ```bash
 python scripts/extract_audio_subset.py \
@@ -114,7 +112,7 @@ python scripts/smoke_test_e5_data.py \
   --device cuda
 ```
 
-## Train
+## Train the Audio-Token Model
 
 ```bash
 python scripts/train.py \
@@ -126,29 +124,36 @@ python scripts/train.py \
 
 Checkpoints are written to `outputs/audio_token/e5_2cb/checkpoints/` by default.
 
-## RunPod
+## Token Cache and Final-Scale Runs
 
-For overnight server training, see:
-
-[docs/RUNPOD_DEPLOYMENT_CN.md](docs/RUNPOD_DEPLOYMENT_CN.md)
-
-Quick server path:
+For larger runs, precompute EnCodec tokens first:
 
 ```bash
-bash scripts/setup_runpod.sh
-N_TRACKS=200 bash scripts/prepare_runpod_data.sh
-bash scripts/runpod_smoke_test.sh
-bash scripts/runpod_train_e5.sh
+python scripts/precompute_audio_token_cache.py \
+  --data_config configs/runpod_1000_data_config.yaml \
+  --model_config configs/model_config.yaml \
+  --output_dir outputs/audio_token/cache_1000_stride10_e5_2cb \
+  --sampling_mode stride \
+  --stride_seconds 10.0 \
+  --device cuda
 ```
 
-On RunPod PyTorch images, `setup_runpod.sh` creates `.venv` with
-`--system-site-packages` by default, so the image's preinstalled Torch/CUDA
-stack is reused while project-only packages such as `encodec` are installed
-inside the repository.
+The final H100 training config is:
 
-## Diagnose Before Full Generation
+```bash
+python scripts/train.py \
+  --data_config configs/runpod_1000_stride10_token_cache_data_config.yaml \
+  --model_config configs/model_config.yaml \
+  --train_config configs/runpod_1000_stride10_cached_h100_train_config.yaml \
+  --device cuda
+```
 
-Run diagnostics before judging full generation quality:
+See [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md) for the final experiment
+configuration and expected metrics.
+
+## Diagnostics and Generation
+
+Before judging full generation, run diagnostics:
 
 ```bash
 python scripts/diagnose_audio_token.py \
@@ -158,21 +163,10 @@ python scripts/diagnose_audio_token.py \
   --output_dir outputs/audio_token/e5_2cb/diagnostics
 ```
 
-This saves:
+This saves target audio, codec reconstruction, partial reconstructions,
+full generation, and a mel-spectrogram figure.
 
-- `target.wav`
-- `codec_reconstruction.wav`
-- `partial_recon_mask_015.wav` through `partial_recon_mask_100.wav`
-- `full_generation.wav`
-- `diagnostic_mels.png`
-
-Interpretation:
-
-- If codec reconstruction is bad, the tokenizer/codebook setting is the bottleneck.
-- If low-mask partial reconstruction is bad, training or model alignment is broken.
-- If partial reconstruction is good but full generation is bad, improve decoding and CFG.
-
-## Generate
+Generate from a context audio file:
 
 ```bash
 python scripts/generate.py \
@@ -184,8 +178,9 @@ python scripts/generate.py \
   --top_k 50
 ```
 
-## Notes
+## Notes for Grading
 
-The official StemGen repository currently contains examples and demo assets,
-not training code or released weights.  This project is therefore a
-paper-guided, scaled-down reproduction rather than an official-code rerun.
+The official StemGen release did not include full training code or released
+weights, so this repository is a paper-guided, scaled-down reproduction rather
+than a rerun of official code. Local datasets, checkpoints, generated audio, and
+large experiment artifacts are intentionally ignored by git.

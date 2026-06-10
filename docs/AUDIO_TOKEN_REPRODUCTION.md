@@ -59,5 +59,6 @@ unstable.  This suggests that the small reproduction learns token-level
 reconstruction but still needs stronger decoding and conditioning to match the
 paper-level full stem generation behavior.
 
-See `docs/LATEST_AUDIO_TOKEN_RESULTS_CN.md` for the full Chinese experiment
-summary and `presentation/` for the 3-minute highlight talk materials.
+See `REPRODUCIBILITY.md` and `report/final.pdf` for the final reported
+configuration, metrics, and analysis. The `presentation/` directory contains
+the 3-minute highlight talk materials.
