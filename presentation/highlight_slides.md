@@ -40,7 +40,7 @@ Main engineering fixes:
 
 ---
 
-## Slide 3. Latest Results
+## Slide 3. Results and Effectiveness
 
 | Run | Data | Sampling | Best Val Loss | Best Val Acc |
 |---|---:|---|---:|---:|
@@ -54,6 +54,14 @@ Main engineering fixes:
 - warm-started from 550 best checkpoint
 - best checkpoint: epoch 19
 - validation loss improved by about 12.3%
+
+Spectrogram evidence:
+
+- codec reconstruction preserves the target's main time-frequency blocks
+- partial-mask reconstruction follows target-like bass structure
+- full 100% mask generation is still much less stable
+
+This supports the main claim: the model is learning useful audio-token structure, but full context-to-stem generation remains the bottleneck.
 
 ---
 
