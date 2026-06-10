@@ -162,9 +162,35 @@ Run & Clips & Sampling & Val loss & Val acc \\
 
 The improvement from the 550 cached run to the 1000 stride10 cached run is meaningful. Best validation loss decreases from 3.4507 to 3.0279, a 12.3\% relative reduction. Validation accuracy increases from 0.521 to 0.572. The best epoch also moves from 56 to 19, which suggests that warm start plus cleaner fixed-stride data helped convergence.
 
+The trend across experiments also shows why we did not report only one final number. The 200-track run already proves that the two-codebook setting is trainable, but its validation accuracy is still close to 0.29. Scaling to 550 tracks gives the largest jump, from 0.294 to about 0.52, which means the model needs broader musical coverage to learn the mapping from context to bass tokens. The cached 550-track run is only slightly better in accuracy than the non-cached 550-track run, but it is much more practical because the GPU is no longer waiting for repeated EnCodec encoding. The final 1000-track run improves quality by changing the data distribution, not by simply adding more overlapping clips. It has fewer total clips than the cached 550 run, but the clips come from more songs and use fixed non-overlapping windows.
+
 \subsection{Codebook-level analysis}
 
 The final 1000-track run reaches codebook accuracies of $[0.6727, 0.4715]$ at the best checkpoint. The first codebook is easier because it carries coarse audio structure. The second codebook adds finer residual information and is harder to predict. This matches our design choice to stay with two codebooks. A 4-codebook experiment on 150 tracks failed badly, reaching only 0.168 validation accuracy, so larger codebook capacity needs more data and probably a larger model.
+
+This gap between codebooks is important for audio quality. Predicting the first codebook mostly gives rough timing, energy, and low-frequency structure. Predicting later codebooks improves detail and timbre, but the label space becomes harder because many residual tokens may be plausible for the same context. In other words, token accuracy is not a perfect audio metric. A wrong fine codebook token may be less harmful than a wrong coarse token, while a sequence of confident but temporally inconsistent coarse tokens can sound very bad. For this reason, we report codebook accuracy but also rely on mel diagnostics.
+
+\subsection{Ablation-style observations}
+
+Several engineering changes were necessary before the results became interpretable. Table~\ref{tab:ablation} summarizes the most important ones. These are not perfectly isolated ablations, because the project schedule did not allow rerunning every combination, but each change fixed a concrete failure mode observed during development.
+
+\begin{table}[t]
+\centering
+\caption{Important implementation and data changes.}
+\label{tab:ablation}
+\small
+\begin{tabular}{p{0.24\linewidth}p{0.33\linewidth}p{0.32\linewidth}}
+\toprule
+Change & Problem before the change & Effect on the project \\
+\midrule
+Aligned codebook count & Codec, trainer, and generator could disagree on the number of RVQ levels. & Made loss and decoding consistent across two codebooks. \\
+Multi-codebook loss & Early training mainly optimized codebook 0. & Forced the model to learn both coarse and residual token streams. \\
+Inactive clip filtering & Silent or weak bass clips could give misleadingly easy accuracy. & Made validation more related to real bass generation. \\
+Token cache & Online EnCodec encoding was slow and wasted H100 time. & Enabled larger cached runs and faster iteration. \\
+Fixed stride windows & Random windows created many highly overlapping clips. & Reduced redundancy and improved generalization in the 1000-track run. \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Qualitative analysis}
 
@@ -179,6 +205,8 @@ Figure~\ref{fig:mels} shows the mel-spectrogram diagnostic from the 550-track ca
 
 This result changes the interpretation of the project. The model is not simply broken: it learns useful conditional audio-token reconstruction. The remaining hard problem is generating all target tokens when no target information is visible.
 
+The qualitative result also explains why validation accuracy alone can be optimistic. During training, the model often sees 50--100\% mask ratios. When the ratio is below 100\%, visible target tokens give local hints about rhythm and pitch region. Full generation removes those hints completely, so the model must infer a full bass line only from the context. This is closer to the real StemGen task and is much harder. The failure mode is usually not total silence. Instead, generated audio may contain energy and some structure, but the timing or spectral shape can drift away from the target.
+
 \subsection{MIDI branch baseline}
 
 We also tested a symbolic MIDI route. The best frame-level activity result was HuBERT-mix with a GRU head, reaching 0.289 activity F1 on 200 tracks. CRNN-large with mix input reached 0.253 F1. A simple Transformer with mel/chroma features stayed around 0.11--0.13 F1. These results are much weaker than needed for complete stem generation, and they also move away from the StemGen audio-token formulation. Therefore, MIDI experiments are useful negative baselines but not the final method.
@@ -186,6 +214,16 @@ We also tested a symbolic MIDI route. The best frame-level activity result was H
 \subsection{Main lessons}
 
 The experiments show three main lessons. First, data quality matters more than just the number of clips. The 1000-track run has fewer total clips than the 550 cached run, but it uses broader track coverage and lower-overlap fixed-stride windows. Second, codebook alignment is critical. If the codec, model, trainer, and generator disagree about codebook count, the decoded audio becomes unreliable. Third, full-mask generation is much harder than partial reconstruction. Future work should improve the decoding schedule, add condition dropout or classifier-free guidance, and train a larger model with a stronger tokenizer setting.
+
+\section{Discussion}
+
+The most important scientific finding is the gap between reconstruction and generation. Partial reconstruction asks the model to complete a damaged version of the true target. Full generation asks it to invent the whole bass stem from the mixture-minus-bass context. These are related but not the same problem. Our model is already useful for the first one, but still weak for the second one. This suggests that future training should put more pressure on full-mask or near-full-mask cases and should use decoding methods that better preserve long-range musical structure.
+
+Another issue is the objective. Cross entropy treats every token error equally, but audio perception does not. A token mistake during an active bass note may be more important than a token mistake during a low-energy region. Also, two different token sequences can decode to similar audio. This makes token accuracy a useful debugging metric, but not a final music quality metric. A stronger evaluation should include mel distance, onset alignment, bass activity F1, and human listening comparisons.
+
+The scale difference from the original StemGen paper is also large. The paper uses a much larger model and a stronger audio-token setup. Our model is intentionally small enough for a course project: 8 layers, 512 hidden size, two codebooks, and 10 second clips. Therefore, the fair conclusion is not that StemGen fails, but that a small reproduction can learn meaningful conditional token structure while still falling short on full stem synthesis. This is a useful outcome because it identifies the main bottleneck rather than only reporting a final demo.
+
+If we continued the project, the next steps would be: train with more 100\% mask examples, add classifier-free guidance or condition dropout, compare different mask-predict schedules, add an activity-aware loss, and move from two to more codebooks only after increasing data and model capacity. We would also produce a small listening set with target, codec reconstruction, partial reconstruction, and full generation for the same examples, because that comparison is the clearest way to judge progress.
 
 \section{Conclusion}
 
