@@ -1,0 +1,46 @@
+Final Project Grading Rubric and Guidelines Released
+Dear Students, 
+Below, we provide the grading rubric and guidelines to help you prepare your final projects.
+
+---------------------------------------------------------------------------------------------------------------------------------------
+Report:
+Project Report Rubric (Total: 80 points)
+Please submit your final project on both Canvas and Gradescope.
+1. Introduction — 8 pts
+8 (Excellent): Clearly defines the problem, provides strong and well-motivated background, and convincingly explains why the problem matters. Includes a clear project overview and concise, well-articulated contributions.
+6 (Good): Problem and motivation are clear; contributions are present but not sharply articulated.
+4 (Fair): Background or motivation is partially clear; contributions are vague or incomplete.
+2 (Poor): Problem is unclear; lacks motivation or meaningful overview.
+2. Related Work — 4 pts
+4 (Excellent): Provides a well-structured synthesis of relevant literature, clearly identifies limitations of prior work, and positions the proposed method effectively.
+3 (Good): Covers relevant work but lacks depth or clear comparison.
+2 (Fair): Limited or loosely connected discussion of prior work.
+1 (Poor): Minimal or incorrect related work.
+3. Method / Approach — 32 pts
+32 (Excellent): Method is clearly described with strong technical depth and rigor. Formulation, equations, and/or algorithms are precise and well justified. The approach is logically structured and demonstrates strong scientific merit.
+24 (Good): Method is mostly clear and technically sound, but lacks depth, clarity, or full justification in some parts.
+16 (Fair): Method is partially described but missing key details, structure, or rigor.
+8 (Poor): Method is unclear, incomplete, or lacks technical substance.
+4. Results & Analysis — 24 pts
+24 (Excellent): Results are comprehensive, clearly presented, and well analyzed. Includes sufficient implementation details (dataset, preprocessing, splits, hyperparameters) for reproducibility. Strong quantitative/qualitative evaluation with appropriate baselines and insightful discussion.
+18 (Good): Results are clear with reasonable analysis, but lack depth, completeness, or reproducibility details.
+12 (Fair): Results are limited, unclear, or weakly analyzed; missing important experimental details.
+6 (Poor): Results are insufficient, not reproducible, or not properly analyzed.
+5. Conclusion — 4 pts
+4 (Excellent): Clearly summarizes findings, reflects on insights and limitations, and proposes meaningful future directions.
+3 (Good): Provides a reasonable summary with some reflection.
+2 (Fair): Basic summary with limited insight.
+1 (Poor): Weak or missing conclusion.
+6. Code & GitHub — 8 pts
+8 (Excellent): Well-organized repository with clear structure and documentation. README provides clear instructions to run the code and reproduce results. Code is functional and reproducible.
+6 (Good): Code is mostly functional with reasonable documentation, but some clarity or usability issues.
+4 (Fair): Code is incomplete, poorly documented, or difficult to run.
+2 (Poor): Code is missing, non-functional, or not reproducible.
+ 
+
+---------------------------------------------------------------------------------------------------------------------------------------
+
+Presentation:
+(1) The format is a highlight presentation. Each group has a maximum of 3 minutes to present their work, followed by a short Q&A on the project content. Given the large number of teams, a strict timing procedure will be enforced. Please practice your presentation to ensure effective communication within the time limit.
+(2) Each group will be evaluated by multiple raters, and the final score will be calculated as the average of all ratings.
+(3) Make the best use of your three minutes by focusing on the most challenging aspects of your project and the most significant results you achieved. Ensure your presentation has a coherent and logical flow.

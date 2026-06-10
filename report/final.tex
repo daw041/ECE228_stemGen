@@ -1,0 +1,242 @@
+\documentclass{article}
+
+\usepackage[preprint]{neurips_2026}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{microtype}
+
+\title{A Scaled-Down Reproduction of StemGen for Context-Aware Bass Stem Generation}
+
+\author{%
+  StemGen Reproduction Team \\
+  ECE 228 Final Project \\
+  \texttt{https://github.com/daw041/ECE228\_stemGen.git}
+}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This project studies context-aware music stem generation. Given a music mixture with the target instrument removed, the goal is to generate a target bass stem that matches the rhythm, harmony, and structure of the context. We reproduce the main idea of StemGen in a smaller course-scale setting: waveform audio is converted into EnCodec residual vector quantization (RVQ) tokens, target tokens are randomly masked, and a non-autoregressive Transformer predicts the missing target tokens conditioned on context tokens and an instrument label. Our best audio-token experiment uses 1000 Slakh-style multitrack songs, 10 second fixed-stride windows, two EnCodec codebooks, token-cache precomputation, and H100 training. It reaches a best validation loss of 3.0279 and validation token accuracy of 0.572, improving over the 550-track cached baseline by 12.3\% relative loss and 5.1 accuracy points. Qualitative mel-spectrogram diagnostics show that codec reconstruction and partial-mask reconstruction preserve useful bass structure, while full 100\% mask generation remains the main bottleneck.
+\end{abstract}
+
+\section{Introduction}
+
+Music stem generation asks a model to create one instrument part while listening to the rest of the song. This is harder than ordinary unconditional audio generation. A bass stem should not only sound like bass; it should also follow the beat, support the harmony, and enter or stop at musically reasonable times. In this project, the input context is the mixture with the bass stem removed, and the output is the generated bass stem.
+
+Our work is a paper-guided reproduction of StemGen \citep{stemgen}. The official repository provides examples and demo material but not a full training pipeline or released weights, so we implement a smaller version of the core audio-token idea. The final system uses EnCodec \citep{encodec} to discretize audio into RVQ tokens, trains a masked-token Transformer to predict target bass tokens, and decodes predicted tokens back to waveform audio.
+
+The main contributions are:
+\begin{itemize}
+    \item We built an end-to-end context-to-bass audio-token pipeline with EnCodec tokenization, multi-codebook masked cross entropy, and iterative mask-predict decoding.
+    \item We fixed several reproduction issues, especially inconsistent codebook handling, inactive target clips, and slow online tokenization.
+    \item We ran controlled experiments from small baselines to 550-track and 1000-track cached H100 runs, showing clear improvement in validation loss and token accuracy.
+    \item We used codec reconstruction, partial-mask reconstruction, full-mask generation, and mel-spectrogram diagnostics to separate what works from what still fails.
+\end{itemize}
+
+\section{Related Work}
+
+Neural music generation has recently moved from symbolic note models to audio-token models. MusicGen \citep{musicgen} generates music from discrete audio tokens using a language-model style decoder. SoundStorm \citep{soundstorm} and MaskGIT \citep{maskgit} show that masked parallel token prediction can generate high-quality discrete sequences with fewer decoding steps than fully autoregressive models. StemGen \citep{stemgen} applies this general direction to musical stem generation: the model listens to context stems and predicts a target stem in audio-token space.
+
+Audio tokenization is a key component. EnCodec \citep{encodec} compresses waveform audio into discrete RVQ codebooks and reconstructs audio from those codes. This makes audio generation closer to language modeling, because the model predicts token classes instead of raw samples. However, more codebooks also make prediction harder, because each time frame has multiple discrete targets.
+
+We also explored a MIDI branch inspired by symbolic music generation. MIDI is easier to inspect and edit, but mapping context audio to bass notes was not reliable in our experiments. Frame-level MIDI baselines with mel/chroma features, CRNNs, and HuBERT features improved activity detection only up to about 0.289 F1. Since the project goal is to reproduce StemGen's audio-token method, we treat the MIDI branch as an exploratory baseline and keep the final method focused on audio tokens.
+
+\section{Method / Approach}
+
+\subsection{Task formulation}
+
+For each multitrack song, let $x^{\mathrm{bass}}$ be the target bass stem and $x^{\mathrm{ctx}}$ be the sum of all non-bass stems. The model receives $x^{\mathrm{ctx}}$ and an instrument condition $c=\mathrm{bass}$, and predicts the target stem:
+\begin{equation}
+    \hat{x}^{\mathrm{bass}} = f_\theta(x^{\mathrm{ctx}}, c).
+\end{equation}
+Instead of predicting waveform samples directly, both context and target audio are converted to EnCodec tokens:
+\begin{equation}
+    z^{\mathrm{ctx}}, z^{\mathrm{bass}} = \mathrm{EncodecEncode}(x^{\mathrm{ctx}}, x^{\mathrm{bass}}),
+\end{equation}
+where $z \in \{0,\ldots,1023\}^{K \times T}$, $K=2$ is the number of RVQ codebooks, and $T$ is the token sequence length for a 10 second clip.
+
+\subsection{Audio-token pipeline}
+
+Figure~\ref{fig:pipeline} summarizes the implemented pipeline. We use 24 kHz EnCodec, 1.5 kbps bandwidth, two RVQ codebooks, and 10 second clips. The context is always visible. The target token sequence is partially or fully masked, and the model predicts the original target tokens.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figures/pipeline.pdf}
+    \caption{Audio-token reproduction pipeline. Context audio is the mixture without bass. Target bass audio is tokenized, masked, predicted by a Transformer, and decoded back to waveform audio.}
+    \label{fig:pipeline}
+\end{figure}
+
+\subsection{Masked-token Transformer}
+
+The model follows a two-stream design. Context tokens and target tokens have separate token embeddings. For each time step, embeddings from the two codebooks are summed inside each stream. An instrument embedding is repeated over time and concatenated with the context and target representations:
+\begin{equation}
+    h_t = W_f [e_{\mathrm{ctx}}(z^{\mathrm{ctx}}_t), e_{\mathrm{tar}}(\tilde{z}^{\mathrm{bass}}_t), e_{\mathrm{inst}}(c)] + p_t,
+\end{equation}
+where $\tilde{z}^{\mathrm{bass}}$ is the masked target sequence and $p_t$ is a learned positional embedding. A Transformer encoder maps $h_{1:T}$ to hidden states. Separate output heads predict each RVQ codebook:
+\begin{equation}
+    p_\theta(z^{\mathrm{bass}}_{k,t} \mid z^{\mathrm{ctx}}, \tilde{z}^{\mathrm{bass}}, c)
+    = \mathrm{softmax}(W_k h_t).
+\end{equation}
+
+The final model uses 8 Transformer layers, hidden size 512, 8 attention heads, feed-forward size 2048, dropout 0.1, and vocabulary size 1024 plus one mask token.
+
+\subsection{Training objective}
+
+During training, a target mask ratio is sampled between 0.50 and 1.00. The model is trained with masked cross entropy over all masked positions and both codebooks:
+\begin{equation}
+    \mathcal{L}
+    =
+    \sum_{k=1}^{K}
+    \sum_{t \in \mathcal{M}_k}
+    \mathrm{CE}
+    \left(
+    p_\theta(z^{\mathrm{bass}}_{k,t}),
+    z^{\mathrm{bass}}_{k,t}
+    \right).
+\end{equation}
+This was an important cleanup step. Earlier versions only handled one codebook or padded missing codebooks with token 0 during decoding, which produced poor audio artifacts.
+
+\subsection{Inference and diagnostics}
+
+For full generation, target tokens start as all masks. The model predicts a token distribution, keeps high-confidence predictions, re-masks the rest, and repeats this process codebook by codebook. We evaluate three levels:
+\begin{itemize}
+    \item Codec reconstruction: encode and decode the real target stem to check whether the tokenizer setting is usable.
+    \item Partial-mask reconstruction: reveal part of the target tokens and predict the masked part.
+    \item Full-mask generation: generate the entire target only from context and instrument condition.
+\end{itemize}
+This diagnostic split is useful because a model can learn local token reconstruction while still failing at full context-to-stem generation.
+
+\section{Results \& Analysis}
+
+\subsection{Dataset and implementation details}
+
+The data is a Slakh-style multitrack subset \citep{slakh}. We use bass as the target instrument. The context is the sum of all non-bass stems. Audio is resampled to 24 kHz and cut into 10 second clips. In later experiments, clips with weak or inactive bass are filtered by target activity so that validation accuracy is not inflated by silent examples.
+
+Training uses AdamW, learning rate $3\times 10^{-4}$ for cached H100 runs, weight decay $10^{-5}$, batch size 64, mixed precision, and early stopping. Token-cache precomputation was important: instead of running EnCodec during every training epoch, we store context and target tokens in shards and train directly from token files.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.95\linewidth]{figures/cache_filtering.pdf}
+    \caption{Final 1000-track fixed-stride cache statistics. Inactive bass windows are filtered before training and validation.}
+    \label{fig:cache}
+\end{figure}
+
+\subsection{Main quantitative results}
+
+Table~\ref{tab:main_results} shows the main audio-token experiments. The strongest run is the 1000-track fixed-stride cached experiment. It uses non-overlapping 10 second windows, filters inactive target clips, and warm-starts from the 550-track checkpoint.
+
+\begin{table}[t]
+\centering
+\caption{Main audio-token validation results. Accuracy is masked token accuracy averaged across codebooks when applicable.}
+\label{tab:main_results}
+\small
+\begin{tabular}{lrlrr}
+\toprule
+Run & Clips & Sampling & Val loss & Val acc \\
+\midrule
+1cb, 315 tracks & -- & random 4 s & -- & 0.280 \\
+2cb, 200 tracks & 1,197 & random 10 s & 6.0700 & 0.294 \\
+2cb, 550 tracks & 3,262 & random 10 s & 3.6500 & 0.518 \\
+2cb, 550 cached & 26,400 & cached clips & 3.4507 & 0.521 \\
+2cb, 1000 stride10 cached & 22,928 & fixed 10 s stride & \textbf{3.0279} & \textbf{0.572} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figures/results_summary.pdf}
+    \caption{Validation accuracy and loss across the main audio-token runs. The final 1000-track stride10 cached run gives the best quantitative result.}
+    \label{fig:results}
+\end{figure}
+
+The improvement from the 550 cached run to the 1000 stride10 cached run is meaningful. Best validation loss decreases from 3.4507 to 3.0279, a 12.3\% relative reduction. Validation accuracy increases from 0.521 to 0.572. The best epoch also moves from 56 to 19, which suggests that warm start plus cleaner fixed-stride data helped convergence.
+
+\subsection{Codebook-level analysis}
+
+The final 1000-track run reaches codebook accuracies of $[0.6727, 0.4715]$ at the best checkpoint. The first codebook is easier because it carries coarse audio structure. The second codebook adds finer residual information and is harder to predict. This matches our design choice to stay with two codebooks. A 4-codebook experiment on 150 tracks failed badly, reaching only 0.168 validation accuracy, so larger codebook capacity needs more data and probably a larger model.
+
+\subsection{Qualitative analysis}
+
+Figure~\ref{fig:mels} shows the mel-spectrogram diagnostic from the 550-track cached model. The exact audio quality is still not at paper level, but the diagnostic is useful. Codec reconstruction preserves the main target structure, so the tokenizer is not the main failure point. Partial-mask reconstruction produces more reasonable time-frequency structure than early noisy baselines. Full 100\% mask generation is weaker and can become noisy or misaligned.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figures/diagnostic_mels_550.png}
+    \caption{Mel-spectrogram diagnostic from a cached audio-token run. The important pattern is that codec and partial-mask reconstruction are more stable than full-mask generation.}
+    \label{fig:mels}
+\end{figure}
+
+This result changes the interpretation of the project. The model is not simply broken: it learns useful conditional audio-token reconstruction. The remaining hard problem is generating all target tokens when no target information is visible.
+
+\subsection{MIDI branch baseline}
+
+We also tested a symbolic MIDI route. The best frame-level activity result was HuBERT-mix with a GRU head, reaching 0.289 activity F1 on 200 tracks. CRNN-large with mix input reached 0.253 F1. A simple Transformer with mel/chroma features stayed around 0.11--0.13 F1. These results are much weaker than needed for complete stem generation, and they also move away from the StemGen audio-token formulation. Therefore, MIDI experiments are useful negative baselines but not the final method.
+
+\subsection{Main lessons}
+
+The experiments show three main lessons. First, data quality matters more than just the number of clips. The 1000-track run has fewer total clips than the 550 cached run, but it uses broader track coverage and lower-overlap fixed-stride windows. Second, codebook alignment is critical. If the codec, model, trainer, and generator disagree about codebook count, the decoded audio becomes unreliable. Third, full-mask generation is much harder than partial reconstruction. Future work should improve the decoding schedule, add condition dropout or classifier-free guidance, and train a larger model with a stronger tokenizer setting.
+
+\section{Conclusion}
+
+We completed a scaled-down but faithful reproduction of the StemGen audio-token idea. The final system converts context and target audio to EnCodec RVQ tokens, trains a masked-token Transformer with multi-codebook cross entropy, and uses iterative mask-predict decoding for bass stem generation. The best 1000-track fixed-stride cached run achieves 3.0279 validation loss and 0.572 validation token accuracy, clearly improving over earlier baselines.
+
+The main limitation is full target generation from 100\% masking. Partial reconstruction is much stronger than full generation, which means the model has learned useful local audio-token structure but does not yet fully solve context-to-stem synthesis. Larger models, better mask schedules, stronger conditioning, and more codebooks are natural next steps.
+
+\section{Code \& GitHub}
+
+The project repository is:
+\begin{center}
+\url{https://github.com/daw041/ECE228_stemGen.git}
+\end{center}
+The repository includes training scripts, model code, data/config files, reproduction notes, presentation materials, and saved experiment logs. The main files are \texttt{src/model.py}, \texttt{src/codec.py}, \texttt{src/dataset.py}, \texttt{src/trainer.py}, \texttt{scripts/train.py}, \texttt{scripts/precompute\_audio\_token\_cache.py}, and \texttt{scripts/diagnose\_audio\_token.py}. The README gives setup, training, generation, and diagnostic commands.
+
+\section{Team Member Contribution}
+
+Member 1 focused on reading the StemGen paper, designing the audio-token reproduction plan, and writing the final report. Member 2 implemented and debugged the EnCodec tokenization, masked-token Transformer, trainer, and generation scripts. Member 3 ran the Slakh data preparation, RunPod/H100 experiments, token-cache pipeline, MIDI baselines, and qualitative diagnostics. All members discussed experiment results, prepared the presentation, and contributed to analysis.
+
+\begin{thebibliography}{9}
+
+\bibitem[Copet et~al.(2023)]{musicgen}
+Copet, J., Kreuk, F., Gat, I., Remez, T., Kant, D., Synnaeve, G., Adi, Y., and Defossez, A.
+\newblock Simple and Controllable Music Generation.
+\newblock \emph{NeurIPS}, 2023.
+
+\bibitem[Defossez et~al.(2023)]{encodec}
+Defossez, A., Copet, J., Synnaeve, G., and Adi, Y.
+\newblock High Fidelity Neural Audio Compression.
+\newblock \emph{Transactions on Machine Learning Research}, 2023.
+
+\bibitem[Donahue et~al.(2023)]{stemgen}
+Donahue, C., Caillon, A., Roberts, A., Manilow, E., Esling, P., Agostinelli, A., Verzetti, M., Simon, I., Engel, J., and Huang, C.-Z. A.
+\newblock StemGen: A Music Generation Model That Listens.
+\newblock 2023.
+
+\bibitem[Hawthorne et~al.(2022)]{slakh}
+Manilow, E., Wichern, G., Seetharaman, P., and Le Roux, J.
+\newblock Cutting Music Source Separation Some Slakh: A Dataset to Study the Impact of Training Data Quality and Quantity.
+\newblock \emph{IEEE Workshop on Applications of Signal Processing to Audio and Acoustics}, 2019.
+
+\bibitem[Chang et~al.(2022)]{maskgit}
+Chang, H., Zhang, H., Jiang, L., Liu, C., and Freeman, W. T.
+\newblock MaskGIT: Masked Generative Image Transformer.
+\newblock \emph{CVPR}, 2022.
+
+\bibitem[Borsos et~al.(2023)]{soundstorm}
+Borsos, Z., Sharifi, M., Vincent, D., et~al.
+\newblock SoundStorm: Efficient Parallel Audio Generation.
+\newblock \emph{arXiv preprint arXiv:2305.09636}, 2023.
+
+\end{thebibliography}
+
+\end{document}
