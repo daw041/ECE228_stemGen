@@ -76,6 +76,21 @@ Figure~\ref{fig:pipeline} summarizes the implemented pipeline. We use 24 kHz EnC
     \label{fig:pipeline}
 \end{figure}
 
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{figures/detailed_pipeline.pdf}
+    \caption{Detailed training and generation paths. During training, the model sees context tokens and a partially masked target token sequence. During generation, the target starts fully masked and is filled by iterative mask-predict decoding.}
+    \label{fig:detailed_pipeline}
+\end{figure}
+
+\subsection{EnCodec RVQ tokenization}
+
+EnCodec is a pretrained neural audio codec. It has an encoder that maps waveform audio into discrete residual vector quantization (RVQ) codes and a decoder that maps those codes back to waveform audio. In this project, EnCodec is not trained by us; it is used as a fixed tokenizer and detokenizer. This design changes the learning problem from raw waveform regression to discrete token classification.
+
+For a 10 second clip, the codec produces a tensor with shape $[K,T]$, where $K$ is the number of RVQ codebooks and $T$ is the number of codec time frames. We use $K=2$. Each codebook has a vocabulary of 1024 entries, so each token is an integer in $[0,1023]$. The first codebook carries the coarse audio content, while the second codebook stores residual detail. The special mask token is assigned id 1024 and is only used by the Transformer, not by EnCodec.
+
+The codebook count has to stay consistent through the whole pipeline. During encoding, both context and target waveforms become two-codebook token tensors. During training, the loss is computed for both codebooks. During decoding, the generated token tensor must also contain exactly two codebooks. We found this detail important because padding a missing codebook with token 0 is wrong: token 0 is a real codec codeword, not silence.
+
 \subsection{Masked-token Transformer}
 
 The model follows a two-stream design. Context tokens and target tokens have separate token embeddings. For each time step, embeddings from the two codebooks are summed inside each stream. An instrument embedding is repeated over time and concatenated with the context and target representations:
@@ -106,9 +121,30 @@ During training, a target mask ratio is sampled between 0.50 and 1.00. The model
 \end{equation}
 This was an important cleanup step. Earlier versions only handled one codebook or padded missing codebooks with token 0 during decoding, which produced poor audio artifacts.
 
-\subsection{Inference and diagnostics}
+The training path is therefore:
+\begin{enumerate}
+    \item Build $x^{\mathrm{ctx}}$ by summing all non-bass stems and take $x^{\mathrm{bass}}$ as the target.
+    \item Encode both waveforms with EnCodec to get $z^{\mathrm{ctx}}, z^{\mathrm{bass}} \in \{0,\ldots,1023\}^{2 \times T}$.
+    \item Randomly replace 50--100\% of target tokens with the mask token 1024.
+    \item Feed context tokens, masked target tokens, and the bass instrument id into the Transformer.
+    \item Compute cross entropy only at masked target positions, separately for each codebook, and sum the losses.
+\end{enumerate}
 
-For full generation, target tokens start as all masks. The model predicts a token distribution, keeps high-confidence predictions, re-masks the rest, and repeats this process codebook by codebook. We evaluate three levels:
+\subsection{Iterative generation and diagnostics}
+
+For full generation, target tokens start as all masks. The model predicts a token distribution, keeps high-confidence predictions, re-masks the rest, and repeats this process codebook by codebook. In our implementation, codebook 0 is generated first because it represents coarse structure. Later codebooks are generated after earlier codebooks are available, so the residual prediction can condition on the coarse prediction.
+
+The generation loop is:
+\begin{enumerate}
+    \item Encode the context waveform into context tokens.
+    \item Initialize all target tokens as $[\mathrm{MASK}]$.
+    \item For each codebook, run several mask-predict iterations.
+    \item At each iteration, predict logits for currently masked positions, apply temperature or top-$k$ sampling if enabled, and fill candidate tokens.
+    \item Rank predictions by confidence, keep a growing fraction of high-confidence tokens, and set low-confidence tokens back to $[\mathrm{MASK}]$ for the next iteration.
+    \item After all codebooks are filled, decode the generated token tensor with EnCodec to obtain the bass waveform.
+\end{enumerate}
+
+We evaluate three levels:
 \begin{itemize}
     \item Codec reconstruction: encode and decode the real target stem to check whether the tokenizer setting is usable.
     \item Partial-mask reconstruction: reveal part of the target tokens and predict the masked part.
