@@ -177,7 +177,7 @@ def main():
 
         # Step 1: Extract data (incremental - skips already extracted tracks)
         extract_cmd = [
-            PYTHON, "scripts/extract_midi_dataset.py",
+            PYTHON, "scripts/midi/extract_midi_dataset.py",
             "--n-tracks", str(config["n_tracks"]),
             "--out-dir", "dataset/midi_subset",
         ]
@@ -189,7 +189,7 @@ def main():
 
         # Step 2: Train
         train_cmd = [
-            PYTHON, "scripts/train_midi.py",
+            PYTHON, "scripts/midi/train_midi.py",
             "--max-tracks", str(config["n_tracks"]),
             "--output-dir", config["output_dir"],
             "--epochs-overfit", str(config["epochs_overfit"]),

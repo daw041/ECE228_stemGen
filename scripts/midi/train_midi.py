@@ -28,7 +28,7 @@ if os.path.isdir(_flu_dir) and _flu_dir not in os.environ.get("PATH", ""):
     if hasattr(os, "add_dll_directory"):
         os.add_dll_directory(_flu_dir)
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from src.midi.audio_features import AudioFeatureExtractor
 from src.midi.midi_labels import MidiLabelExtractor

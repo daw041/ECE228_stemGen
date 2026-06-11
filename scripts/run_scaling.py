@@ -12,7 +12,7 @@ EXPERIMENTS = [
     # === HuBERT data scaling ===
     {
         "name": "HuBERT-GRU-550",
-        "script": "scripts/train_hubert.py",
+        "script": "scripts/midi/train_hubert.py",
         "desc": "HuBERT-base + GRU @ 550 tracks",
         "args": ["--max-tracks", "550", "--output-dir", "outputs/midi/scale_hubert_gru_550",
                  "--epochs-train", "30", "--batch-size", "8", "--lr", "1e-3",
@@ -22,7 +22,7 @@ EXPERIMENTS = [
     # === HuBERT + CRNN (new combo) ===
     {
         "name": "HuBERT-CRNN-200",
-        "script": "scripts/train_hubert.py",
+        "script": "scripts/midi/train_hubert.py",
         "desc": "HuBERT-base + CRNN @ 200 tracks",
         "args": ["--max-tracks", "200", "--output-dir", "outputs/midi/scale_hubert_crnn_200",
                  "--epochs-train", "30", "--batch-size", "8", "--lr", "1e-3",
@@ -31,7 +31,7 @@ EXPERIMENTS = [
     },
     {
         "name": "HuBERT-CRNN-550",
-        "script": "scripts/train_hubert.py",
+        "script": "scripts/midi/train_hubert.py",
         "desc": "HuBERT-base + CRNN @ 550 tracks",
         "args": ["--max-tracks", "550", "--output-dir", "outputs/midi/scale_hubert_crnn_550",
                  "--epochs-train", "30", "--batch-size", "8", "--lr", "1e-3",
@@ -41,7 +41,7 @@ EXPERIMENTS = [
     # === CRNN standalone scaling (larger model) ===
     {
         "name": "CRNN-L-200",
-        "script": "scripts/train_crnn.py",
+        "script": "scripts/midi/train_crnn.py",
         "desc": "CRNN-large (hidden=512) @ 200 tracks",
         "args": ["--max-tracks", "200", "--output-dir", "outputs/midi/scale_crnn_l_200",
                  "--epochs-train", "30", "--batch-size", "16", "--lr", "1e-3",
@@ -51,7 +51,7 @@ EXPERIMENTS = [
     },
     {
         "name": "CRNN-L-550",
-        "script": "scripts/train_crnn.py",
+        "script": "scripts/midi/train_crnn.py",
         "desc": "CRNN-large (hidden=512) @ 550 tracks",
         "args": ["--max-tracks", "550", "--output-dir", "outputs/midi/scale_crnn_l_550",
                  "--epochs-train", "30", "--batch-size", "16", "--lr", "1e-3",
@@ -61,7 +61,7 @@ EXPERIMENTS = [
     },
     {
         "name": "CRNN-L-1000",
-        "script": "scripts/train_crnn.py",
+        "script": "scripts/midi/train_crnn.py",
         "desc": "CRNN-large (hidden=512) @ 1000 tracks",
         "args": ["--max-tracks", "1000", "--output-dir", "outputs/midi/scale_crnn_l_1000",
                  "--epochs-train", "30", "--batch-size", "16", "--lr", "1e-3",

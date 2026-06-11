@@ -56,7 +56,8 @@ docs/                    Reproduction notes and debugging guides
 outputs/                 Local experiment artifacts; ignored except selected markdown
 presentation/            3-minute highlight presentation materials
 report/                  Final report source, figures, and compiled PDF
-scripts/                 Training, generation, cache, evaluation, and smoke-test scripts
+scripts/                 Audio-token training, generation, cache, evaluation, and smoke tests
+  midi/                  Exploratory MIDI-branch training/extraction scripts
 src/                     Core Python package
   codec.py               EnCodec RVQ wrapper
   dataset.py             Slakh context-target datasets and token-cache dataset
@@ -177,6 +178,25 @@ python scripts/generate.py \
   --temperature 0.8 \
   --top_k 50
 ```
+
+## Audio-Domain Evaluation
+
+To reproduce the audio-domain metrics in the report (log-mel L2 distance and
+onset-alignment score for codec reconstruction, partial-mask reconstruction, and
+full-mask generation), run:
+
+```bash
+python scripts/eval_audio_metrics.py \
+  --checkpoint outputs/audio_token/e5_2cb/checkpoints/best.pt \
+  --data_config configs/runpod_1000_data_config.yaml \
+  --model_config configs/model_config.yaml \
+  --num_clips 20 \
+  --iterations_per_codebook 32,16 \
+  --device cuda
+```
+
+This decodes generated tokens back to waveform and reports mean ± standard
+deviation of each metric over the held-out validation clips.
 
 ## Notes for Grading
 
