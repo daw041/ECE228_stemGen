@@ -4,7 +4,7 @@
 
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage{hyperref}
+\usepackage[hypertexnames=false]{hyperref}
 \usepackage{url}
 \usepackage{booktabs}
 \usepackage{amsmath}
@@ -436,7 +436,24 @@ The qualitative result also explains why validation accuracy alone can be optimi
 
 \subsection{Audio-domain evaluation}
 
-Token accuracy and mel diagnostics are useful but indirect. To measure quality in the audio domain we provide an evaluation harness (\texttt{scripts/eval\_audio\_metrics.py}) that decodes generated tokens to waveform and computes two metrics against the ground-truth bass: a log-mel-spectrogram L2 distance (lower is better) and an onset-alignment score, the correlation between the reference and generated onset-energy envelopes (higher is better, in $[-1,1]$). These are computed for the three diagnostic levels (codec reconstruction, partial-mask reconstruction, full-mask generation) so that the reconstruction-versus-generation gap can be read quantitatively rather than only from spectrograms. Because the metrics require decoding a trained checkpoint over held-out audio on GPU, we report them as the evaluation protocol here; the expected ordering, consistent with the mel diagnostics in Figure~\ref{fig:mels}, is that codec reconstruction attains the smallest mel distance and highest onset correlation, partial-mask reconstruction is intermediate, and full-mask generation is weakest on onset alignment in particular. This audio-domain protocol, together with bass activity F1 and a small human listening comparison, is the evaluation we would prioritize to turn the qualitative claims into measured ones.
+Token accuracy and mel diagnostics are useful but indirect. To measure quality in the audio domain, we ran \texttt{scripts/eval\_audio\_metrics.py} with the best 1000-track checkpoint on 20 held-out validation clips. The script decodes generated tokens to waveform and computes two metrics against the ground-truth bass: log-mel-spectrogram L2 distance (lower is better) and onset-alignment correlation between reference and generated onset-energy envelopes (higher is better, in $[-1,1]$). We evaluate the same three diagnostic levels used in the qualitative analysis.
+
+\begin{table}[H]
+\centering
+\caption{Audio-domain metrics on 20 held-out validation clips. Values are mean $\pm$ standard deviation.}
+\label{tab:audio_metrics}
+\begin{tabular}{lcc}
+\toprule
+Level & Mel L2 distance $\downarrow$ & Onset score $\uparrow$ \\
+\midrule
+Codec reconstruction (ceiling) & $4.516 \pm 0.804$ & $0.608 \pm 0.166$ \\
+Partial-mask reconstruction (50\%) & $4.746 \pm 0.855$ & $0.578 \pm 0.158$ \\
+Full-mask generation & $19.280 \pm 5.944$ & $0.040 \pm 0.057$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The numbers in Table~\ref{tab:audio_metrics} support the qualitative result in Figure~\ref{fig:mels}. EnCodec reconstruction is a strong ceiling, so the tokenizer itself is not the main bottleneck. Partial-mask reconstruction stays close to that ceiling, which means the Transformer can repair missing token spans when local target context is available. Full-mask generation is much worse: the mel distance is about four times larger than the codec ceiling, and onset alignment is close to zero. This confirms that the remaining problem is not low-level decoding, but conditioning and global generation from mixture-minus-target context.
 
 \subsection{MIDI branch baseline}
 

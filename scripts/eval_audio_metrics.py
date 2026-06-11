@@ -41,11 +41,24 @@ from src.dataset import SlakhContextTargetDataset
 from src.model import StemGenModel
 
 
+def as_channels_first(wav: torch.Tensor) -> torch.Tensor:
+    """Return waveform as [channels, time] for metric computation."""
+    wav = wav.detach().cpu()
+    while wav.dim() > 2 and wav.shape[0] == 1:
+        wav = wav.squeeze(0)
+    if wav.dim() == 1:
+        wav = wav.unsqueeze(0)
+    if wav.dim() != 2:
+        raise ValueError(f"Expected waveform with 1 or 2 audio dims, got shape {tuple(wav.shape)}")
+    return wav
+
+
 def mel_spectrogram(wav: torch.Tensor, sr: int, n_mels: int = 80) -> np.ndarray:
+    wav = as_channels_first(wav)
     transform = torchaudio.transforms.MelSpectrogram(
         sample_rate=sr, n_mels=n_mels, n_fft=1024, hop_length=256
     )
-    spec = transform(wav.cpu())
+    spec = transform(wav)
     return torch.log(spec + 1e-6).squeeze().numpy()
 
 
@@ -60,8 +73,8 @@ def spectrogram_distance(ref: torch.Tensor, gen: torch.Tensor, sr: int) -> float
 
 def onset_alignment_score(ref: torch.Tensor, gen: torch.Tensor, sr: int) -> float:
     """Onset-energy correlation (higher is better)."""
-    ref = ref.cpu()
-    gen = gen.cpu()
+    ref = as_channels_first(ref)
+    gen = as_channels_first(gen)
     ref_onset = torch.diff(ref.abs().mean(dim=0), dim=0).abs()
     gen_onset = torch.diff(gen.abs().mean(dim=0), dim=0).abs()
     min_len = min(ref_onset.shape[0], gen_onset.shape[0])
