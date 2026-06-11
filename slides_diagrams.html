@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StemGen Slide Diagrams</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    padding: 40px 60px;
+  }
+  h1 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 18px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #1e293b;
+  }
+  .diagram-block {
+    margin-bottom: 64px;
+  }
+
+  /* ─── SHARED SVG STYLES ─── */
+  svg text { font-family: 'Segoe UI', system-ui, sans-serif; }
+
+  /* ─── SLIDE 1 ─── */
+  .s1-wrap { display: flex; justify-content: center; }
+
+  /* ─── SLIDE 3 BAR CHART ─── */
+  .chart-wrap { display: flex; justify-content: center; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     SLIDE 1 — Problem schematic
+     ══════════════════════════════════════════ -->
+<div class="diagram-block">
+  <h1>Slide 1 — Problem &amp; Motivation</h1>
+  <div class="s1-wrap">
+  <svg width="860" height="280" viewBox="0 0 860 280" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L8,3 z" fill="#64748b"/>
+      </marker>
+      <marker id="arr-b" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L8,3 z" fill="#6366f1"/>
+      </marker>
+      <linearGradient id="gMix" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#1e3a5f"/>
+        <stop offset="100%" stop-color="#1e4a3f"/>
+      </linearGradient>
+      <linearGradient id="gModel" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#312e81"/>
+        <stop offset="100%" stop-color="#4c1d95"/>
+      </linearGradient>
+      <linearGradient id="gOut" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#14532d"/>
+        <stop offset="100%" stop-color="#1a4731"/>
+      </linearGradient>
+    </defs>
+
+    <!-- background -->
+    <rect width="860" height="280" rx="16" fill="#131722"/>
+
+    <!-- ── Mixture box ── -->
+    <rect x="30" y="90" width="140" height="100" rx="10" fill="url(#gMix)" stroke="#3b82f6" stroke-width="1.5"/>
+    <text x="100" y="128" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="600">Mixture</text>
+    <text x="100" y="148" text-anchor="middle" fill="#93c5fd" font-size="11">Audio</text>
+    <!-- waveform squiggle -->
+    <polyline points="50,165 58,155 66,172 74,150 82,170 90,155 98,168 106,152 114,168 122,155 130,165 138,158 146,165"
+              fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+
+    <!-- ── minus sign ── -->
+    <line x1="185" y1="140" x2="200" y2="140" stroke="#64748b" stroke-width="2.5" stroke-linecap="round"/>
+    <circle cx="192" cy="140" r="14" fill="none" stroke="#334155" stroke-width="1.5"/>
+    <line x1="186" y1="140" x2="199" y2="140" stroke="#f1f5f9" stroke-width="2.5" stroke-linecap="round"/>
+
+    <!-- ── Bass (target) small box, below ── -->
+    <rect x="158" y="200" width="70" height="36" rx="7" fill="#1c1f2e" stroke="#f59e0b" stroke-width="1.2"/>
+    <text x="193" y="213" text-anchor="middle" fill="#fcd34d" font-size="10" font-weight="600">Bass Stem</text>
+    <text x="193" y="227" text-anchor="middle" fill="#fcd34d" font-size="9">(Target)</text>
+    <line x1="193" y1="200" x2="193" y2="155" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+
+    <!-- arrow mix→context -->
+    <line x1="170" y1="140" x2="220" y2="140" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+
+    <!-- ── Context box ── -->
+    <rect x="220" y="90" width="150" height="100" rx="10" fill="#1a2a1f" stroke="#22c55e" stroke-width="1.5"/>
+    <text x="295" y="125" text-anchor="middle" fill="#86efac" font-size="13" font-weight="600">Context</text>
+    <text x="295" y="143" text-anchor="middle" fill="#6ee7b7" font-size="10">(mixture − bass)</text>
+    <polyline points="240,165 250,155 260,168 270,150 280,162 290,155 300,168 310,152 320,165 330,155 340,165 350,160 360,165"
+              fill="none" stroke="#22c55e" stroke-width="1.4" stroke-linecap="round" opacity="0.65"/>
+
+    <!-- arrow context→model -->
+    <line x1="370" y1="140" x2="440" y2="140" stroke="#64748b" stroke-width="1.5" marker-end="url(#arr)"/>
+
+    <!-- ── Instrument condition ── -->
+    <rect x="405" y="205" width="110" height="34" rx="7" fill="#1c1117" stroke="#a855f7" stroke-width="1.2"/>
+    <text x="460" y="219" text-anchor="middle" fill="#d8b4fe" font-size="10" font-weight="600">Instrument</text>
+    <text x="460" y="232" text-anchor="middle" fill="#d8b4fe" font-size="10">Condition 🎸</text>
+    <line x1="460" y1="205" x2="490" y2="175" stroke="#a855f7" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+
+    <!-- ── Model box ── -->
+    <rect x="440" y="70" width="170" height="120" rx="12" fill="url(#gModel)" stroke="#818cf8" stroke-width="2"/>
+    <text x="525" y="112" text-anchor="middle" fill="#e0e7ff" font-size="14" font-weight="700">StemGen</text>
+    <text x="525" y="132" text-anchor="middle" fill="#e0e7ff" font-size="13" font-weight="700">Model</text>
+    <text x="525" y="152" text-anchor="middle" fill="#a5b4fc" font-size="10">Masked-Token</text>
+    <text x="525" y="166" text-anchor="middle" fill="#a5b4fc" font-size="10">Transformer</text>
+
+    <!-- arrow model→output -->
+    <line x1="610" y1="130" x2="680" y2="130" stroke="#6366f1" stroke-width="2" marker-end="url(#arr-b)"/>
+
+    <!-- ── Output box ── -->
+    <rect x="680" y="80" width="150" height="100" rx="10" fill="url(#gOut)" stroke="#4ade80" stroke-width="1.8"/>
+    <text x="755" y="118" text-anchor="middle" fill="#bbf7d0" font-size="13" font-weight="600">Generated</text>
+    <text x="755" y="136" text-anchor="middle" fill="#bbf7d0" font-size="13" font-weight="600">Bass Stem</text>
+    <polyline points="700,162 710,150 720,168 730,148 740,164 750,152 760,166 770,150 780,164 790,154 800,162 810,156 818,162"
+              fill="none" stroke="#4ade80" stroke-width="1.5" stroke-linecap="round" opacity="0.75"/>
+
+    <!-- label: "compatible with context" -->
+    <text x="755" y="202" text-anchor="middle" fill="#6ee7b7" font-size="10" font-style="italic">compatible with context ✓</text>
+
+    <!-- top label -->
+    <text x="430" y="38" text-anchor="middle" fill="#475569" font-size="12" font-style="italic">Given musical context + target instrument → generate a compatible stem</text>
+  </svg>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     SLIDE 2 — Method flowchart
+     ══════════════════════════════════════════ -->
+<div class="diagram-block">
+  <h1>Slide 2 — Method / Core Idea</h1>
+  <svg width="880" height="420" viewBox="0 0 880 420" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="a2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L8,3 z" fill="#475569"/>
+      </marker>
+      <marker id="a2b" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L0,6 L8,3 z" fill="#6366f1"/>
+      </marker>
+    </defs>
+    <rect width="880" height="420" rx="16" fill="#131722"/>
+
+    <!-- ══ STEP LABELS TOP ══ -->
+    <text x="110" y="30" text-anchor="middle" fill="#64748b" font-size="11" font-weight="700" letter-spacing="0.08em">STEP 1</text>
+    <text x="110" y="46" text-anchor="middle" fill="#94a3b8" font-size="12" font-weight="600">Tokenization</text>
+
+    <text x="430" y="30" text-anchor="middle" fill="#64748b" font-size="11" font-weight="700" letter-spacing="0.08em">STEP 2</text>
+    <text x="430" y="46" text-anchor="middle" fill="#94a3b8" font-size="12" font-weight="600">Two-Stream Fusion + Transformer</text>
+
+    <text x="760" y="30" text-anchor="middle" fill="#64748b" font-size="11" font-weight="700" letter-spacing="0.08em">STEP 3</text>
+    <text x="760" y="46" text-anchor="middle" fill="#94a3b8" font-size="12" font-weight="600">Iterative Decoding</text>
+
+    <!-- dividers -->
+    <line x1="255" y1="20" x2="255" y2="400" stroke="#1e293b" stroke-width="1.5" stroke-dasharray="5,4"/>
+    <line x1="590" y1="20" x2="590" y2="400" stroke="#1e293b" stroke-width="1.5" stroke-dasharray="5,4"/>
+
+    <!-- ══ STEP 1: Tokenization ══ -->
+    <!-- Context audio -->
+    <rect x="20" y="70" width="120" height="52" rx="8" fill="#1a2a1f" stroke="#22c55e" stroke-width="1.4"/>
+    <text x="80" y="91" text-anchor="middle" fill="#86efac" font-size="11" font-weight="600">Context Audio</text>
+    <polyline points="28,108 38,98 48,112 58,95 68,108 78,100 88,112 98,97 108,110 118,100 128,108"
+              fill="none" stroke="#22c55e" stroke-width="1.3" stroke-linecap="round" opacity="0.7"/>
+
+    <!-- Target audio -->
+    <rect x="20" y="148" width="120" height="52" rx="8" fill="#1c1f2e" stroke="#f59e0b" stroke-width="1.4"/>
+    <text x="80" y="168" text-anchor="middle" fill="#fcd34d" font-size="11" font-weight="600">Target Audio</text>
+    <text x="80" y="183" text-anchor="middle" fill="#fcd34d" font-size="10">(Bass Stem)</text>
+
+    <!-- EnCodec box -->
+    <rect x="20" y="260" width="120" height="42" rx="8" fill="#1e1e2e" stroke="#818cf8" stroke-width="1.4"/>
+    <text x="80" y="277" text-anchor="middle" fill="#c7d2fe" font-size="11" font-weight="600">EnCodec</text>
+    <text x="80" y="293" text-anchor="middle" fill="#a5b4fc" font-size="10">24 kHz  RVQ</text>
+
+    <!-- arrows into EnCodec -->
+    <line x1="80" y1="122" x2="80" y2="142" stroke="#475569" stroke-width="1.3" marker-end="url(#a2)"/>
+    <line x1="80" y1="200" x2="80" y2="254" stroke="#475569" stroke-width="1.3" marker-end="url(#a2)"/>
+
+    <!-- tokens out -->
+    <!-- context tokens row -->
+    <text x="160" y="103" fill="#64748b" font-size="10">context tokens</text>
+    <rect x="158" y="108" width="18" height="18" rx="3" fill="#166534" stroke="#22c55e" stroke-width="1"/>
+    <rect x="180" y="108" width="18" height="18" rx="3" fill="#166534" stroke="#22c55e" stroke-width="1"/>
+    <rect x="202" y="108" width="18" height="18" rx="3" fill="#166534" stroke="#22c55e" stroke-width="1"/>
+    <rect x="224" y="108" width="18" height="18" rx="3" fill="#166534" stroke="#22c55e" stroke-width="1"/>
+    <text x="245" y="121" fill="#64748b" font-size="11">…</text>
+    <text x="160" y="140" fill="#86efac" font-size="9">visible (not masked)</text>
+
+    <!-- target tokens row — some masked -->
+    <text x="160" y="183" fill="#64748b" font-size="10">target tokens</text>
+    <rect x="158" y="188" width="18" height="18" rx="3" fill="#78350f" stroke="#f59e0b" stroke-width="1"/>
+    <rect x="180" y="188" width="18" height="18" rx="3" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+    <text x="184" y="201" text-anchor="middle" fill="#475569" font-size="13">?</text>
+    <rect x="202" y="188" width="18" height="18" rx="3" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+    <text x="206" y="201" text-anchor="middle" fill="#475569" font-size="13">?</text>
+    <rect x="224" y="188" width="18" height="18" rx="3" fill="#78350f" stroke="#f59e0b" stroke-width="1"/>
+    <text x="245" y="201" fill="#64748b" font-size="11">…</text>
+    <text x="158" y="218" fill="#fbbf24" font-size="9">masked (50–100% ratio)</text>
+
+    <!-- arrow from EnCodec to tokens -->
+    <line x1="140" y1="281" x2="156" y2="190" stroke="#818cf8" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#a2)"/>
+    <line x1="140" y1="281" x2="156" y2="117" stroke="#818cf8" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#a2)"/>
+
+    <!-- ══ STEP 2: Transformer ══ -->
+    <!-- fusion input labels -->
+    <text x="290" y="90" fill="#94a3b8" font-size="10" font-weight="600">① context emb</text>
+    <rect x="275" y="95" width="70" height="22" rx="4" fill="#14532d" stroke="#22c55e" stroke-width="1"/>
+    <text x="310" y="111" text-anchor="middle" fill="#86efac" font-size="10">e_ctx</text>
+
+    <text x="290" y="138" fill="#94a3b8" font-size="10" font-weight="600">② target emb</text>
+    <rect x="275" y="143" width="70" height="22" rx="4" fill="#451a03" stroke="#f59e0b" stroke-width="1"/>
+    <text x="310" y="159" text-anchor="middle" fill="#fcd34d" font-size="10">e_tgt</text>
+
+    <text x="290" y="187" fill="#94a3b8" font-size="10" font-weight="600">③ instrument emb</text>
+    <rect x="275" y="192" width="70" height="22" rx="4" fill="#2e1065" stroke="#a855f7" stroke-width="1"/>
+    <text x="310" y="208" text-anchor="middle" fill="#d8b4fe" font-size="10">e_inst</text>
+
+    <!-- fusion symbol -->
+    <circle cx="390" cy="155" r="20" fill="#1e2a3a" stroke="#6366f1" stroke-width="1.8"/>
+    <text x="390" y="161" text-anchor="middle" fill="#818cf8" font-size="16" font-weight="700">+</text>
+
+    <!-- arrows into fusion -->
+    <line x1="345" y1="106" x2="375" y2="143" stroke="#475569" stroke-width="1.2" marker-end="url(#a2)"/>
+    <line x1="345" y1="154" x2="370" y2="154" stroke="#475569" stroke-width="1.2" marker-end="url(#a2)"/>
+    <line x1="345" y1="203" x2="375" y2="167" stroke="#475569" stroke-width="1.2" marker-end="url(#a2)"/>
+
+    <!-- Transformer block -->
+    <rect x="425" y="90" width="140" height="130" rx="10" fill="#1a1f3a" stroke="#6366f1" stroke-width="2"/>
+    <text x="495" y="130" text-anchor="middle" fill="#e0e7ff" font-size="13" font-weight="700">Transformer</text>
+    <!-- layer indicators -->
+    <rect x="445" y="140" width="100" height="12" rx="3" fill="#2d3778" opacity="0.9"/>
+    <rect x="445" y="156" width="100" height="12" rx="3" fill="#2d3778" opacity="0.75"/>
+    <rect x="445" y="172" width="100" height="12" rx="3" fill="#2d3778" opacity="0.6"/>
+    <text x="495" y="150" text-anchor="middle" fill="#818cf8" font-size="8">layer</text>
+    <text x="495" y="166" text-anchor="middle" fill="#818cf8" font-size="8">layer</text>
+    <text x="495" y="182" text-anchor="middle" fill="#818cf8" font-size="8">layer  ×8</text>
+    <text x="495" y="207" text-anchor="middle" fill="#a5b4fc" font-size="9">512 dim · 8 heads · 3M params</text>
+
+    <!-- CE loss note -->
+    <rect x="440" y="245" width="110" height="30" rx="6" fill="#1c1117" stroke="#ec4899" stroke-width="1.2"/>
+    <text x="495" y="261" text-anchor="middle" fill="#f9a8d4" font-size="10" font-weight="600">Cross-Entropy Loss</text>
+    <text x="495" y="273" text-anchor="middle" fill="#f472b6" font-size="9">masked positions only</text>
+    <line x1="495" y1="220" x2="495" y2="245" stroke="#ec4899" stroke-width="1.2" stroke-dasharray="3,3" marker-end="url(#a2)"/>
+
+    <!-- arrows fusion→transformer -->
+    <line x1="410" y1="155" x2="425" y2="155" stroke="#6366f1" stroke-width="1.8" marker-end="url(#a2b)"/>
+
+    <!-- ══ STEP 3: Iterative decoding ══ -->
+    <!-- arrow transformer→step3 -->
+    <line x1="565" y1="155" x2="615" y2="155" stroke="#6366f1" stroke-width="1.8" marker-end="url(#a2b)"/>
+
+    <!-- iteration boxes -->
+    <!-- iter 0 -->
+    <rect x="615" y="65" width="95" height="56" rx="7" fill="#1c2332" stroke="#334155" stroke-width="1.2"/>
+    <text x="662" y="84" text-anchor="middle" fill="#64748b" font-size="10">Iter 0</text>
+    <rect x="625" y="90" width="12" height="12" rx="2" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+    <text x="631" y="101" text-anchor="middle" fill="#475569" font-size="9">?</text>
+    <rect x="641" y="90" width="12" height="12" rx="2" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+    <text x="647" y="101" text-anchor="middle" fill="#475569" font-size="9">?</text>
+    <rect x="657" y="90" width="12" height="12" rx="2" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+    <text x="663" y="101" text-anchor="middle" fill="#475569" font-size="9">?</text>
+    <rect x="673" y="90" width="12" height="12" rx="2" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+    <text x="679" y="101" text-anchor="middle" fill="#475569" font-size="9">?</text>
+    <text x="690" y="101" fill="#475569" font-size="10">…</text>
+
+    <!-- iter 1 -->
+    <rect x="615" y="138" width="95" height="56" rx="7" fill="#1c2332" stroke="#334155" stroke-width="1.2"/>
+    <text x="662" y="157" text-anchor="middle" fill="#64748b" font-size="10">Iter 1–2</text>
+    <rect x="625" y="163" width="12" height="12" rx="2" fill="#78350f" stroke="#f59e0b" stroke-width="1"/>
+    <rect x="641" y="163" width="12" height="12" rx="2" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+    <text x="647" y="174" text-anchor="middle" fill="#475569" font-size="9">?</text>
+    <rect x="657" y="163" width="12" height="12" rx="2" fill="#78350f" stroke="#f59e0b" stroke-width="1"/>
+    <rect x="673" y="163" width="12" height="12" rx="2" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+    <text x="679" y="174" text-anchor="middle" fill="#475569" font-size="9">?</text>
+    <text x="690" y="174" fill="#475569" font-size="10">…</text>
+
+    <!-- iter final -->
+    <rect x="615" y="211" width="95" height="56" rx="7" fill="#1a2a1f" stroke="#22c55e" stroke-width="1.4"/>
+    <text x="662" y="230" text-anchor="middle" fill="#86efac" font-size="10">Final</text>
+    <rect x="625" y="236" width="12" height="12" rx="2" fill="#166534" stroke="#22c55e" stroke-width="1"/>
+    <rect x="641" y="236" width="12" height="12" rx="2" fill="#166534" stroke="#22c55e" stroke-width="1"/>
+    <rect x="657" y="236" width="12" height="12" rx="2" fill="#166534" stroke="#22c55e" stroke-width="1"/>
+    <rect x="673" y="236" width="12" height="12" rx="2" fill="#166534" stroke="#22c55e" stroke-width="1"/>
+    <text x="690" y="247" fill="#22c55e" font-size="10">…</text>
+
+    <!-- down arrows between iters -->
+    <line x1="662" y1="121" x2="662" y2="138" stroke="#475569" stroke-width="1.2" marker-end="url(#a2)"/>
+    <line x1="662" y1="194" x2="662" y2="211" stroke="#475569" stroke-width="1.2" marker-end="url(#a2)"/>
+
+    <!-- confidence note -->
+    <text x="720" y="155" fill="#64748b" font-size="9" font-style="italic">keep high-conf</text>
+    <text x="720" y="166" fill="#64748b" font-size="9" font-style="italic">tokens, re-mask</text>
+    <text x="720" y="177" fill="#64748b" font-size="9" font-style="italic">rest</text>
+
+    <!-- decode + output -->
+    <rect x="720" y="280" width="130" height="44" rx="8" fill="#14532d" stroke="#4ade80" stroke-width="1.6"/>
+    <text x="785" y="299" text-anchor="middle" fill="#bbf7d0" font-size="12" font-weight="600">EnCodec Decode</text>
+    <text x="785" y="316" text-anchor="middle" fill="#6ee7b7" font-size="10">→ generated_bass.wav</text>
+
+    <!-- arrow final→decode -->
+    <line x1="760" y1="267" x2="770" y2="280" stroke="#22c55e" stroke-width="1.4" marker-end="url(#a2)"/>
+
+    <!-- annotation: mask ratio -->
+    <rect x="30" y="300" width="200" height="36" rx="7" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+    <text x="130" y="317" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="600">Mask Ratio: 50–100% (variable)</text>
+    <text x="130" y="330" text-anchor="middle" fill="#64748b" font-size="9">context tokens always visible</text>
+
+    <!-- annotation: 2 codebooks -->
+    <rect x="270" y="300" width="170" height="36" rx="7" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+    <text x="355" y="317" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="600">2 RVQ Codebooks</text>
+    <text x="355" y="330" text-anchor="middle" fill="#64748b" font-size="9">coarse + 1 fine level</text>
+
+    <!-- annotation: iterations -->
+    <rect x="480" y="300" width="180" height="36" rx="7" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+    <text x="570" y="317" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="600">32+16 decoding steps</text>
+    <text x="570" y="330" text-anchor="middle" fill="#64748b" font-size="9">per-codebook mask-predict</text>
+  </svg>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     SLIDE 3 — Results bar chart
+     ══════════════════════════════════════════ -->
+<div class="diagram-block">
+  <h1>Slide 3 — Results &amp; Insights</h1>
+  <div class="chart-wrap">
+  <svg width="780" height="360" viewBox="0 0 780 360" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="bGray" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#475569"/>
+        <stop offset="100%" stop-color="#334155"/>
+      </linearGradient>
+      <linearGradient id="bBlue" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#3b82f6"/>
+        <stop offset="100%" stop-color="#1d4ed8"/>
+      </linearGradient>
+      <linearGradient id="bGreen" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#4ade80"/>
+        <stop offset="100%" stop-color="#16a34a"/>
+      </linearGradient>
+      <linearGradient id="bRed" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#f87171"/>
+        <stop offset="100%" stop-color="#dc2626"/>
+      </linearGradient>
+    </defs>
+    <rect width="780" height="360" rx="16" fill="#131722"/>
+
+    <!-- title -->
+    <text x="390" y="30" text-anchor="middle" fill="#e2e8f0" font-size="15" font-weight="700">Validation Accuracy vs. Experiment Config</text>
+
+    <!-- Y axis -->
+    <line x1="90" y1="50" x2="90" y2="270" stroke="#334155" stroke-width="1.5"/>
+    <!-- Y gridlines + labels -->
+    <!-- 0% -->
+    <line x1="90" y1="270" x2="720" y2="270" stroke="#1e293b" stroke-width="1" stroke-dasharray="4,4"/>
+    <text x="78" y="274" text-anchor="end" fill="#64748b" font-size="11">0%</text>
+    <!-- 20% -->
+    <line x1="90" y1="226" x2="720" y2="226" stroke="#1e293b" stroke-width="1" stroke-dasharray="4,4"/>
+    <text x="78" y="230" text-anchor="end" fill="#64748b" font-size="11">20%</text>
+    <!-- 40% -->
+    <line x1="90" y1="182" x2="720" y2="182" stroke="#1e293b" stroke-width="1" stroke-dasharray="4,4"/>
+    <text x="78" y="186" text-anchor="end" fill="#64748b" font-size="11">40%</text>
+    <!-- 60% -->
+    <line x1="90" y1="138" x2="720" y2="138" stroke="#1e293b" stroke-width="1" stroke-dasharray="4,4"/>
+    <text x="78" y="142" text-anchor="end" fill="#64748b" font-size="11">60%</text>
+
+    <!-- Y axis label -->
+    <text x="18" y="180" text-anchor="middle" fill="#94a3b8" font-size="12" font-weight="600"
+          transform="rotate(-90,18,180)">Val Accuracy</text>
+
+    <!-- X axis -->
+    <line x1="90" y1="270" x2="720" y2="270" stroke="#334155" stroke-width="1.5"/>
+
+    <!-- ─── BAR DATA ───
+         Scale: 220px = 100%  → 1% = 2.2px
+         bar top y = 270 − val*2.2
+    -->
+
+    <!-- Bar 1: 1cb baseline 315t → 28.0% → height=61.6 -->
+    <rect x="130" y="208" width="80" height="62" rx="5" fill="url(#bGray)"/>
+    <text x="170" y="204" text-anchor="middle" fill="#94a3b8" font-size="13" font-weight="700">28.0%</text>
+    <text x="170" y="295" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="600">1cb</text>
+    <text x="170" y="308" text-anchor="middle" fill="#64748b" font-size="9">315 tracks</text>
+    <text x="170" y="320" text-anchor="middle" fill="#64748b" font-size="9">baseline</text>
+
+    <!-- Bar 2: 2cb 200t → 29.4% → height=64.7 -->
+    <rect x="258" y="205" width="80" height="65" rx="5" fill="url(#bBlue)"/>
+    <text x="298" y="201" text-anchor="middle" fill="#93c5fd" font-size="13" font-weight="700">29.4%</text>
+    <text x="298" y="295" text-anchor="middle" fill="#93c5fd" font-size="10" font-weight="600">2cb</text>
+    <text x="298" y="308" text-anchor="middle" fill="#64748b" font-size="9">200 tracks</text>
+    <text x="298" y="320" text-anchor="middle" fill="#64748b" font-size="9">E1</text>
+
+    <!-- Bar 3: 2cb 550t → 51.8% → height=113.96  ← BEST, green + star -->
+    <rect x="386" y="156" width="80" height="114" rx="5" fill="url(#bGreen)"/>
+    <!-- glow outline -->
+    <rect x="384" y="154" width="84" height="118" rx="6" fill="none" stroke="#4ade80" stroke-width="2.5" opacity="0.6"/>
+    <text x="426" y="150" text-anchor="middle" fill="#4ade80" font-size="14" font-weight="800">51.8%</text>
+    <text x="426" y="139" text-anchor="middle" fill="#fbbf24" font-size="13">★ Best</text>
+    <text x="426" y="295" text-anchor="middle" fill="#4ade80" font-size="10" font-weight="700">2cb</text>
+    <text x="426" y="308" text-anchor="middle" fill="#6ee7b7" font-size="9">550 tracks</text>
+    <text x="426" y="320" text-anchor="middle" fill="#6ee7b7" font-size="9">E2</text>
+
+    <!-- Bar 4: 4cb 150t → 16.8% → height=36.96, red (failed) -->
+    <rect x="514" y="233" width="80" height="37" rx="5" fill="url(#bRed)"/>
+    <text x="554" y="229" text-anchor="middle" fill="#fca5a5" font-size="13" font-weight="700">16.8%</text>
+    <text x="554" y="295" text-anchor="middle" fill="#fca5a5" font-size="10" font-weight="600">4cb</text>
+    <text x="554" y="308" text-anchor="middle" fill="#64748b" font-size="9">150 tracks</text>
+    <text x="554" y="320" text-anchor="middle" fill="#f87171" font-size="9">E3 — insufficient data</text>
+
+    <!-- ─── TAKEAWAY BOX ─── -->
+    <rect x="90" y="336" width="590" height="16" rx="4" fill="#0f172a"/>
+    <text x="385" y="348" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="600">
+      Key Insight: More data (550 tracks) outweighs more codebooks (4cb) — data scale matters most at this stage.
+    </text>
+
+    <!-- ─── ANNOTATION: 2x data arrow ─── -->
+    <!-- arrow from bar2 top to bar3 top -->
+    <line x1="338" y1="185" x2="386" y2="165" stroke="#fbbf24" stroke-width="1.5" stroke-dasharray="4,3"
+          marker-end="url(#a2)"/>
+    <text x="353" y="173" text-anchor="middle" fill="#fbbf24" font-size="9">+22.4pp</text>
+    <text x="353" y="184" text-anchor="middle" fill="#fbbf24" font-size="9">2.75× data</text>
+
+    <!-- annotation: 4cb failed -->
+    <line x1="594" y1="233" x2="640" y2="215" stroke="#f87171" stroke-width="1.2" stroke-dasharray="3,3"/>
+    <text x="645" y="211" fill="#fca5a5" font-size="9">needs &gt;550 tracks</text>
+    <text x="645" y="222" fill="#fca5a5" font-size="9">to generalize</text>
+  </svg>
+  </div>
+</div>
+
+</body>
+</html>

@@ -12,6 +12,10 @@
 \usepackage{graphicx}
 \usepackage{xcolor}
 \usepackage{microtype}
+\usepackage{algorithm}
+\usepackage[noend]{algpseudocode}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, calc}
 
 \title{A Scaled-Down Reproduction of StemGen for Context-Aware Bass Stem Generation}
 
@@ -31,7 +35,7 @@ This project studies context-aware music stem generation. Given a music mixture 
 
 \section{Introduction}
 
-Music stem generation asks a model to create one instrument part while listening to the rest of the song. This is harder than ordinary unconditional audio generation. A bass stem should not only sound like bass; it should also follow the beat, support the harmony, and enter or stop at musically reasonable times. In this project, the input context is the mixture with the bass stem removed, and the output is the generated bass stem.
+Music stem generation asks a model to create one instrument part while listening to the rest of the song. This is harder than ordinary unconditional audio generation. A bass stem should not only sound like bass; it should also follow the beat, support the harmony, and enter or stop at musically reasonable times. This capability matters in practice: context-aware stem generation underpins tools for music co-creation, accompaniment and backing-track production, instrument-aware remixing, and data augmentation for source separation, all of which need a model that responds to an existing mix rather than generating in isolation. In this project, the input context is the mixture with the bass stem removed, and the output is the generated bass stem.
 
 Our work is a paper-guided reproduction of StemGen \citep{stemgen}. The official repository provides examples and demo material but not a full training pipeline or released weights, so we implement a smaller version of the core audio-token idea. The final system uses EnCodec \citep{encodec} to discretize audio into RVQ tokens, trains a masked-token Transformer to predict target bass tokens, and decodes predicted tokens back to waveform audio.
 
@@ -45,7 +49,7 @@ The main contributions are:
 
 \section{Related Work}
 
-Neural music generation has recently moved from symbolic note models to audio-token models. MusicGen \citep{musicgen} generates music from discrete audio tokens using a language-model style decoder. SoundStorm \citep{soundstorm} and MaskGIT \citep{maskgit} show that masked parallel token prediction can generate high-quality discrete sequences with fewer decoding steps than fully autoregressive models. StemGen \citep{stemgen} applies this general direction to musical stem generation: the model listens to context stems and predicts a target stem in audio-token space.
+Neural music generation has recently moved from symbolic note models to audio-token models. MusicGen \citep{musicgen} generates music from discrete audio tokens using a language-model style decoder. SoundStorm \citep{soundstorm} and MaskGIT \citep{maskgit} show that masked parallel token prediction can generate high-quality discrete sequences with fewer decoding steps than fully autoregressive models. StemGen \citep{stemgen} applies this general direction to musical stem generation: the model listens to context stems and predicts a target stem in audio-token space. A practical limitation of this line of work for reproduction is that the strongest systems rely on large models and proprietary data, and the official StemGen release ships demos but neither a full training pipeline nor pretrained weights; MusicGen and SoundStorm likewise target unconditional or text-conditioned generation rather than mixture-conditioned stem completion. Our contribution is to close this gap with a compact, fully specified, and reproducible implementation of the core context-to-stem masked-token recipe that runs at course scale, isolating which parts of the method survive aggressive downscaling.
 
 Audio tokenization is a key component. EnCodec \citep{encodec} compresses waveform audio into discrete RVQ codebooks and reconstructs audio from those codes. This makes audio generation closer to language modeling, because the model predicts token classes instead of raw samples. However, more codebooks also make prediction harder, because each time frame has multiple discrete targets.
 
@@ -63,7 +67,7 @@ Instead of predicting waveform samples directly, both context and target audio a
 \begin{equation}
     z^{\mathrm{ctx}}, z^{\mathrm{bass}} = \mathrm{EncodecEncode}(x^{\mathrm{ctx}}, x^{\mathrm{bass}}),
 \end{equation}
-where $z \in \{0,\ldots,1023\}^{K \times T}$, $K=2$ is the number of RVQ codebooks, and $T$ is the token sequence length for a 10 second clip.
+where $z \in \{0,\ldots,1023\}^{K \times T}$, $K=2$ is the number of RVQ codebooks, and $T$ is the token sequence length for a 10 second clip. The 24~kHz EnCodec model uses a 320-sample frame hop, so it emits $24000/320 = 75$ frames per second and a 10 second clip yields $T \approx 750$ tokens per codebook; the model allocates a maximum sequence length of $T_{\max}=1024$ to leave headroom above this value.
 
 \subsection{Audio-token pipeline}
 
@@ -103,11 +107,53 @@ where $\tilde{z}^{\mathrm{bass}}$ is the masked target sequence and $p_t$ is a l
     = \mathrm{softmax}(W_k h_t).
 \end{equation}
 
-The final model uses 8 Transformer layers, hidden size 512, 8 attention heads, feed-forward size 2048, dropout 0.1, and vocabulary size 1024 plus one mask token.
+The final model uses 8 Transformer layers, hidden size $d=512$, 8 attention heads, feed-forward size 2048, dropout 0.1, and vocabulary size 1024 plus one mask token. Token embeddings are shared across codebook levels within each stream: for a given time step $t$, the representation is formed by summing the $d$-dimensional embeddings of all $K$ codebook tokens at that position rather than using separate per-codebook embedding tables, so each stream produces one $512$-dimensional vector per frame. The instrument condition is mapped by a separate embedding table over $6$ instrument classes to a $64$-dimensional vector $e_{\mathrm{inst}}(c)$ and broadcast over time. The context stream embedding $e_{\mathrm{ctx}}$ ($512$), target stream embedding $e_{\mathrm{tar}}$ ($512$), and instrument embedding $e_{\mathrm{inst}}$ ($64$) are concatenated along the feature dimension to a $512+512+64=1088$ dimensional vector and projected back to the model dimension $d=512$ via a learned linear layer $W_f \in \mathbb{R}^{512 \times 1088}$ before positional encoding is added. We use concatenation-then-projection rather than simple addition so the model can learn an asymmetric weighting of the three streams instead of forcing them onto a shared subspace. Positional encoding is a learned parameter matrix of shape $[1, T_{\max}, d]$ with $T_{\max}=1024$ rather than a fixed sinusoidal encoding. The Transformer uses Pre-LayerNorm (norm-first) and GELU activations. Output heads for each codebook are independent linear layers mapping $\mathbb{R}^d \to \mathbb{R}^{1024}$, with no weight sharing between codebooks. An optional frame-level activity head is implemented but disabled in the final audio-token model. The total parameter count is approximately 28.4 million. Figure~\ref{fig:arch} traces the data flow through the two streams, the conditioning embedding, the fusion projection, and the per-codebook output heads.
+
+\begin{figure}[t]
+    \centering
+    \resizebox{\linewidth}{!}{%
+    \begin{tikzpicture}[
+      font=\small, >=Latex, node distance=5mm and 11mm,
+      box/.style={draw, rounded corners, align=center, minimum height=10mm, inner sep=3pt},
+      inp/.style={box, fill=blue!8},
+      emb/.style={box, fill=green!10},
+      op/.style={box, fill=orange!12},
+      tf/.style={box, fill=violet!12, minimum height=16mm, minimum width=20mm},
+      head/.style={box, fill=red!10},
+    ]
+      \node[inp] (ctx) {Context tokens\\ $z^{\mathrm{ctx}}\;[K{\times}T]$};
+      \node[inp, below=of ctx] (tar) {Masked target\\ $\tilde z^{\mathrm{bass}}\;[K{\times}T]$};
+      \node[inp, below=of tar] (inst) {Instrument $c$};
+
+      \node[emb, right=of ctx]  (ectx)  {embed $+$ sum\\ $e_{\mathrm{ctx}}\;[T{\times}512]$};
+      \node[emb, right=of tar]  (etar)  {embed $+$ sum\\ $e_{\mathrm{tar}}\;[T{\times}512]$};
+      \node[emb, right=of inst] (einst) {embed $+$ broadcast\\ $e_{\mathrm{inst}}\;[T{\times}64]$};
+
+      \node[op, right=13mm of etar] (concat) {concat\\ $[T{\times}1088]$};
+      \node[op, right=of concat] (proj) {$W_f$ $+$ pos.\\ $[T{\times}512]$};
+      \node[tf, right=of proj] (trans) {Transformer\\ encoder\\ $8\times$, pre-LN};
+
+      \node[head, right=13mm of trans, yshift=7mm]  (h0) {Head cb0\\ $[T{\times}1024]$};
+      \node[head, right=13mm of trans, yshift=-7mm] (h1) {Head cb1\\ $[T{\times}1024]$};
+
+      \draw[->] (ctx)  -- (ectx);
+      \draw[->] (tar)  -- (etar);
+      \draw[->] (inst) -- (einst);
+      \draw[->] (ectx)  -- (concat);
+      \draw[->] (etar)  -- (concat);
+      \draw[->] (einst) -- (concat);
+      \draw[->] (concat) -- (proj);
+      \draw[->] (proj) -- (trans);
+      \draw[->] (trans) -- (h0);
+      \draw[->] (trans) -- (h1);
+    \end{tikzpicture}}
+    \caption{Two-stream masked-token Transformer. The context and (masked) target token streams are each embedded and summed across the $K=2$ codebooks into $512$-dimensional per-frame vectors; the instrument embedding is broadcast over time. The three are concatenated to $1088$ dimensions, projected back to $d=512$ by $W_f$, given learned positional encodings, and passed through an 8-layer pre-LN Transformer. Independent linear heads predict the $1024$-way token distribution for each codebook.}
+    \label{fig:arch}
+\end{figure}
 
 \subsection{Training objective}
 
-During training, a target mask ratio is sampled between 0.50 and 1.00. The model is trained with masked cross entropy over all masked positions and both codebooks:
+During training, a target mask ratio is sampled uniformly between 0.50 and 1.00 per batch. The mask is applied at the \emph{frame} level: a single binary mask over time positions is drawn and applied identically across all codebooks, so the same time steps are masked in both codebook sequences. This is important for coherence: revealing a time step in codebook 0 while masking it in codebook 1 would create an inconsistent input that does not occur at generation time. The model is trained with masked cross entropy over all masked positions and both codebooks:
 \begin{equation}
     \mathcal{L}
     =
@@ -130,6 +176,22 @@ The training path is therefore:
     \item Compute cross entropy only at masked target positions, separately for each codebook, and sum the losses.
 \end{enumerate}
 
+Algorithm~\ref{alg:train} states one training step precisely. The key design choice is that a single binary mask is drawn over the $T$ time positions and applied identically to both codebooks, so the model never sees the inconsistent situation of a frame revealed in one codebook but masked in the other---a situation that cannot occur at generation time.
+
+\begin{algorithm}[t]
+\caption{Masked audio-token training step}
+\label{alg:train}
+\begin{algorithmic}[1]
+\Require context tokens $z^{\mathrm{ctx}}\!\in\!\{0,\ldots,1023\}^{K\times T}$, target tokens $z^{\mathrm{bass}}\!\in\!\{0,\ldots,1023\}^{K\times T}$, instrument $c$, model $f_\theta$
+\State sample mask ratio $r \sim \mathcal{U}(0.50, 1.00)$
+\State draw frame mask $m \in \{0,1\}^{T}$ with $\Pr[m_t=1]=r$ \Comment{shared across all $K$ codebooks}
+\State $\tilde{z}^{\mathrm{bass}}_{k,t} \gets 1024$ if $m_t=1$ else $z^{\mathrm{bass}}_{k,t}$, for all $k,t$ \Comment{insert mask token}
+\State $\{p_\theta(\cdot\mid k,t)\}_{k,t} \gets f_\theta(z^{\mathrm{ctx}}, \tilde{z}^{\mathrm{bass}}, c)$
+\State $\mathcal{L} \gets \sum_{k=1}^{K}\sum_{t:\,m_t=1} \mathrm{CE}\!\left(p_\theta(\cdot\mid k,t),\, z^{\mathrm{bass}}_{k,t}\right)$ \Comment{equal codebook weights $[1,1]$}
+\State update $\theta$ with AdamW on $\nabla_\theta \mathcal{L}$ under AMP, gradient clipped to norm $1.0$
+\end{algorithmic}
+\end{algorithm}
+
 \subsection{Iterative generation and diagnostics}
 
 For full generation, target tokens start as all masks. The model predicts a token distribution, keeps high-confidence predictions, re-masks the rest, and repeats this process codebook by codebook. In our implementation, codebook 0 is generated first because it represents coarse structure. Later codebooks are generated after earlier codebooks are available, so the residual prediction can condition on the coarse prediction.
@@ -144,6 +206,82 @@ The generation loop is:
     \item After all codebooks are filled, decode the generated token tensor with EnCodec to obtain the bass waveform.
 \end{enumerate}
 
+At each iteration, the confidence score used to rank which tokens to keep is:
+\begin{equation}
+    s_{t} = \max_v\, p_\theta(z^{\mathrm{bass}}_{k,t} = v) + \lambda \cdot b_t,
+\end{equation}
+where $b_t = (T - t) / T$ is a causal position bias that favors fixing earlier time positions first, and $\lambda = 0.1$ controls its strength. At iteration $i$ of $N_k$ total iterations for codebook $k$, let $B$ be the number of positions still masked in that codebook; the schedule commits the top-scoring
+\begin{equation}
+    \max\!\left(1,\; \left\lfloor B \cdot r \cdot \frac{i+1}{N_k} \right\rfloor\right)
+\end{equation}
+positions and re-masks the rest, with a base keep ratio $r = 0.25$. We use a deeper schedule for the coarse codebook, $N_0 = 32$ and $N_1 = 16$, since codebook~0 carries the structure that the residual codebook conditions on. This progressive reveal means that in early iterations only a small fraction of high-confidence positions are committed, leaving uncertain positions open for revision in later iterations. Sampling defaults to temperature $1.0$ with multinomial draws and optional top-$k$ truncation; greedy decoding is also supported.
+
+Algorithm~\ref{alg:gen} states the full decoding procedure, and Figure~\ref{fig:schedule} illustrates the progressive reveal as a storyboard.
+
+\begin{algorithm}[t]
+\caption{Iterative coarse-to-fine mask-predict generation}
+\label{alg:gen}
+\begin{algorithmic}[1]
+\Require context tokens $z^{\mathrm{ctx}}$, instrument $c$, model $f_\theta$, iterations $\{N_k\}$, keep ratio $r$, bias $\lambda$
+\State initialize all target tokens $\hat{z}_{k,t} \gets 1024$ for every $k,t$
+\For{codebook $k = 0$ to $K-1$} \Comment{coarse to fine}
+  \For{iteration $i = 0$ to $N_k-1$}
+    \State $p_\theta \gets f_\theta(z^{\mathrm{ctx}}, \hat{z}, c)$; restrict attention to codebook $k$
+    \State sample/argmax a candidate $v_t$ for each masked position $t$ from $p_\theta(\cdot\mid k,t)$
+    \State score $s_t \gets \max_v p_\theta(z_{k,t}=v) + \lambda (T-t)/T$
+    \State keep the top $\max(1, \lfloor B\, r\,(i{+}1)/N_k\rfloor)$ positions by $s_t$; set $\hat{z}_{k,t}\!\gets\! v_t$ there
+    \State re-mask all other positions of codebook $k$
+  \EndFor
+\EndFor
+\State \Return EnCodec decode of $\hat{z}$ as the bass waveform
+\end{algorithmic}
+\end{algorithm}
+
+\begin{figure}[t]
+    \centering
+    \newcommand{\tokrow}[4]{%
+      \foreach \i in {1,...,#3}{%
+        \pgfmathtruncatemacro{\isfix}{\i < #4 + 0.5 ? 1 : 0}%
+        \ifnum\isfix=1\relax
+          \node[fix] at ({#1+(\i-1)*0.46},#2) {};%
+        \else
+          \node[mask] at ({#1+(\i-1)*0.46},#2) {};%
+        \fi
+      }%
+    }
+    \resizebox{\linewidth}{!}{%
+    \begin{tikzpicture}[font=\footnotesize, >=Latex,
+      cell/.style={draw, minimum size=4.2mm, inner sep=0pt},
+      mask/.style={cell, fill=gray!22},
+      fix/.style={cell, fill=blue!38},
+    ]
+      \node at (-0.85,0) {cb0};
+      \node at (-0.85,-0.52) {cb1};
+      % stage A: all masked
+      \tokrow{0}{0}{8}{0}      \tokrow{0}{-0.52}{8}{0}
+      % stage B: cb0 partly committed
+      \tokrow{4.3}{0}{8}{3}    \tokrow{4.3}{-0.52}{8}{0}
+      % stage C: cb0 done
+      \tokrow{8.6}{0}{8}{8}    \tokrow{8.6}{-0.52}{8}{0}
+      % stage D: cb1 done
+      \tokrow{12.9}{0}{8}{8}   \tokrow{12.9}{-0.52}{8}{8}
+      % stage labels
+      \node[align=center] at (1.61,-1.15)  {start:\\ all [MASK]};
+      \node[align=center] at (5.91,-1.15)  {fill cb0 by\\ confidence};
+      \node[align=center] at (10.21,-1.15) {cb0 fixed\\ ($N_0{=}32$)};
+      \node[align=center] at (14.51,-1.15) {fill cb1\\ ($N_1{=}16$)};
+      % transition arrows
+      \draw[->] (3.55,-0.26)  -- (4.02,-0.26);
+      \draw[->] (7.85,-0.26)  -- (8.32,-0.26);
+      \draw[->] (12.15,-0.26) -- (12.62,-0.26);
+      % legend
+      \node[fix]  at (4.6,-2.05) {}; \node[right] at (4.85,-2.05) {committed token};
+      \node[mask] at (9.2,-2.05) {}; \node[right] at (9.45,-2.05) {[MASK]};
+    \end{tikzpicture}}
+    \caption{Coarse-to-fine mask-predict generation. The target starts as all mask tokens. Codebook~0 is filled first over $N_0=32$ iterations, committing the most confident positions at each step (the causal bias favors earlier time positions, drawn as a left-to-right fill); once codebook~0 is fixed, codebook~1 is filled over $N_1=16$ iterations conditioned on it. The decoded token tensor is then passed to EnCodec.}
+    \label{fig:schedule}
+\end{figure}
+
 We evaluate three levels:
 \begin{itemize}
     \item Codec reconstruction: encode and decode the real target stem to check whether the tokenizer setting is usable.
@@ -152,13 +290,51 @@ We evaluate three levels:
 \end{itemize}
 This diagnostic split is useful because a model can learn local token reconstruction while still failing at full context-to-stem generation.
 
+\subsection{Hyperparameter summary}
+
+Table~\ref{tab:hparams} consolidates the model, codec, training, and generation settings of the final system for reproducibility.
+
+\begin{table}[t]
+\centering
+\caption{Configuration of the final audio-token system.}
+\label{tab:hparams}
+\small
+\begin{tabular}{llll}
+\toprule
+\multicolumn{2}{l}{\textbf{Model / codec}} & \multicolumn{2}{l}{\textbf{Training / generation}} \\
+\midrule
+Transformer layers & 8 & Optimizer & AdamW \\
+Hidden size $d$ & 512 & Learning rate & $3\times10^{-4}$ \\
+Attention heads & 8 & $\beta_1,\beta_2$ & $0.9, 0.999$ \\
+Feed-forward size & 2048 & Weight decay & $10^{-5}$ \\
+Activation / norm & GELU / pre-LN & Batch size & 64 \\
+Dropout & 0.1 & Grad clip (norm) & 1.0 \\
+Positional enc. & learned, $T_{\max}{=}1024$ & Precision & AMP (fp16) \\
+Instrument embed dim & 64 ($6$ classes) & Mask ratio $r$ & $\mathcal{U}(0.5,1.0)$ \\
+Output heads & per-codebook & Codebook weights & $[1.0, 1.0]$ \\
+Parameters & $\approx$28.4\,M & Early stop & patience 12, $\delta{=}0.005$ \\
+\midrule
+Codec & EnCodec 24\,kHz & Gen.\ iterations $N_0,N_1$ & 32, 16 \\
+Bandwidth & 1.5\,kbps & Keep ratio $r$ & 0.25 \\
+Codebooks $K$ & 2 ($\times$1024) & Causal bias $\lambda$ & 0.1 \\
+Frame rate & 75\,Hz ($T{\approx}750$) & Sampling & temp.\ 1.0, multinomial \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \section{Results \& Analysis}
 
 \subsection{Dataset and implementation details}
 
 The data is a Slakh-style multitrack subset \citep{slakh}. We use bass as the target instrument. The context is the sum of all non-bass stems. Audio is resampled to 24 kHz and cut into 10 second clips. In later experiments, clips with weak or inactive bass are filtered by target activity so that validation accuracy is not inflated by silent examples.
 
-Training uses AdamW, learning rate $3\times 10^{-4}$ for cached H100 runs, weight decay $10^{-5}$, batch size 64, mixed precision, and early stopping. Token-cache precomputation was important: instead of running EnCodec during every training epoch, we store context and target tokens in shards and train directly from token files.
+Training uses AdamW with a constant learning rate $3\times 10^{-4}$, momentum parameters $\beta = (0.9, 0.999)$, weight decay $10^{-5}$, batch size 64, gradient clipping at norm $1.0$, and mixed-precision training (AMP). Early stopping monitors validation loss with patience 12 epochs and minimum improvement threshold $\delta = 0.005$. Codebook losses are weighted equally at $[1.0, 1.0]$. Token-cache precomputation was important for training efficiency: instead of running EnCodec online during every training epoch, we store context and target tokens in shards and train directly from token files.
+
+We report \emph{masked token accuracy}: at the masked target positions, the fraction of positions where the model's top-1 prediction equals the ground-truth EnCodec token, averaged over the two codebooks. The 1000-track run uses a deterministic 80/20 train/validation split over fixed non-overlapping windows, so validation accuracy is comparable across epochs and runs rather than depending on a random crop.
+
+For the final 1000-track fixed-stride cached run, the token cache contains 18,361 training clips and 4,567 validation clips after inactive bass filtering (approximately an 80/20 split). A clip is considered inactive and filtered if the target bass waveform energy falls below a threshold, preventing the model from overfitting to silent frames and inflating validation accuracy. The filtering removed 2,060 training candidates and 527 validation candidates from the raw stride-10 windows (roughly 10\% of each split).
+
+As a reference point, a trivial random-token baseline that predicts each of the 1024 token classes uniformly at random would achieve an expected accuracy of $1/1024 \approx 0.10\%$. A majority-class baseline that always predicts the most frequent token would also perform near chance because codec token distributions are approximately uniform across the vocabulary. The model's best validation accuracy of 57.2\% therefore represents substantial learned structure rather than label imbalance. An upper bound for the token prediction task is codec reconstruction accuracy: encoding the ground-truth bass waveform with EnCodec and decoding it back recovers audio that is perceptually close to the original, confirming that the tokenizer setting is not the bottleneck.
 
 \begin{figure}[t]
     \centering
@@ -198,11 +374,11 @@ Run & Clips & Sampling & Val loss & Val acc \\
 
 The improvement from the 550 cached run to the 1000 stride10 cached run is meaningful. Best validation loss decreases from 3.4507 to 3.0279, a 12.3\% relative reduction. Validation accuracy increases from 0.521 to 0.572. The best epoch also moves from 56 to 19, which suggests that warm start plus cleaner fixed-stride data helped convergence.
 
-The trend across experiments also shows why we did not report only one final number. The 200-track run already proves that the two-codebook setting is trainable, but its validation accuracy is still close to 0.29. Scaling to 550 tracks gives the largest jump, from 0.294 to about 0.52, which means the model needs broader musical coverage to learn the mapping from context to bass tokens. The cached 550-track run is only slightly better in accuracy than the non-cached 550-track run, but it is much more practical because the GPU is no longer waiting for repeated EnCodec encoding. The final 1000-track run improves quality by changing the data distribution, not by simply adding more overlapping clips. It has fewer total clips than the cached 550 run, but the clips come from more songs and use fixed non-overlapping windows.
+The trend across experiments also shows why we did not report only one final number. The 200-track run already proves that the two-codebook setting is trainable, but its validation accuracy is still close to 0.29, and it early-stopped at epoch 226 (best validation at epoch 176). Scaling to 550 tracks gives the largest jump, from 0.294 to about 0.52, which means the model needs broader musical coverage to learn the mapping from context to bass tokens; notably the 550-track run ran the full 400 epochs without triggering early stopping and was still improving at the end (best at epoch 353), which directly motivated the move to token caching so that longer, larger-scale runs became affordable. The cached 550-track run is only slightly better in accuracy than the non-cached 550-track run, but it is much more practical because the GPU is no longer waiting for repeated EnCodec encoding. The final 1000-track run improves quality by changing the data distribution, not by simply adding more overlapping clips. It has fewer total clips than the cached 550 run, but the clips come from more songs and use fixed non-overlapping windows.
 
 \subsection{Codebook-level analysis}
 
-The final 1000-track run reaches codebook accuracies of $[0.6727, 0.4715]$ at the best checkpoint. The first codebook is easier because it carries coarse audio structure. The second codebook adds finer residual information and is harder to predict. This matches our design choice to stay with two codebooks. A 4-codebook experiment on 150 tracks failed badly, reaching only 0.168 validation accuracy, so larger codebook capacity needs more data and probably a larger model.
+The final 1000-track run reaches codebook accuracies of $[0.6727, 0.4715]$ at the best checkpoint. The first codebook is easier because it carries coarse audio structure (timing, energy envelope, low-frequency content). The second codebook adds residual detail and is harder. A 4-codebook experiment on 150 tracks failed badly: it early-stopped at epoch 162 with only 0.168 overall validation accuracy, well below even the 0.28 single-codebook baseline, so larger codebook capacity needs more data and probably a larger model before it helps rather than hurts.
 
 This gap between codebooks is important for audio quality. Predicting the first codebook mostly gives rough timing, energy, and low-frequency structure. Predicting later codebooks improves detail and timbre, but the label space becomes harder because many residual tokens may be plausible for the same context. In other words, token accuracy is not a perfect audio metric. A wrong fine codebook token may be less harmful than a wrong coarse token, while a sequence of confident but temporally inconsistent coarse tokens can sound very bad. For this reason, we report codebook accuracy but also rely on mel diagnostics.
 
@@ -228,11 +404,17 @@ Fixed stride windows & Random windows created many highly overlapping clips. & R
 \end{tabular}
 \end{table}
 
+\subsection{Convergence analysis}
+
+The training dynamics differ notably across runs. The 550-track cached run required 56 epochs to reach its best validation loss of 3.4507, while the 1000-track stride10 run warm-started from that checkpoint and reached its best loss of 3.0279 at only epoch 19 before early stopping triggered at epoch 31. This faster convergence has two explanations. First, warm-starting from a partially trained checkpoint skips the early noisy phase where the model learns basic codebook statistics. Second, the fixed-stride non-overlapping windows in the 1000-track run present a more uniform data distribution: each clip is seen roughly once per epoch, whereas random sampling in earlier runs could revisit the same audio region many times within one epoch, slowing generalization.
+
+The final checkpoint at epoch 31 (loss 3.2979, accuracy 0.543) is worse than the best at epoch 19, confirming that the model did overfit slightly after epoch 19. The early stopping patience of 12 epochs with minimum delta 0.005 correctly identified this and halted training, preventing further degradation. This suggests that the optimal training regime for the current data scale sits around 20--25 epochs with warm start, and that further improvement would require either more data or model regularization rather than simply longer training.
+
 \subsection{Qualitative analysis}
 
 Figure~\ref{fig:mels} shows the mel-spectrogram diagnostic from the 550-track cached model. The exact audio quality is still not at paper level, but the diagnostic is useful. Codec reconstruction preserves the main target structure, so the tokenizer is not the main failure point. Partial-mask reconstruction produces more reasonable time-frequency structure than early noisy baselines. Full 100\% mask generation is weaker and can become noisy or misaligned.
 
-\begin{figure}[t]
+\begin{figure}[H]
     \centering
     \includegraphics[width=\linewidth]{figures/diagnostic_mels_550.png}
     \caption{Mel-spectrogram diagnostic from a cached audio-token run. The important pattern is that codec and partial-mask reconstruction are more stable than full-mask generation.}
@@ -241,7 +423,13 @@ Figure~\ref{fig:mels} shows the mel-spectrogram diagnostic from the 550-track ca
 
 This result changes the interpretation of the project. The model is not simply broken: it learns useful conditional audio-token reconstruction. The remaining hard problem is generating all target tokens when no target information is visible.
 
-The qualitative result also explains why validation accuracy alone can be optimistic. During training, the model often sees 50--100\% mask ratios. When the ratio is below 100\%, visible target tokens give local hints about rhythm and pitch region. Full generation removes those hints completely, so the model must infer a full bass line only from the context. This is closer to the real StemGen task and is much harder. The failure mode is usually not total silence. Instead, generated audio may contain energy and some structure, but the timing or spectral shape can drift away from the target.
+The three diagnostic levels reveal different failure modes. In codec reconstruction, the spectrogram closely matches the ground-truth bass in both frequency content and temporal structure, confirming that the EnCodec tokenizer at 1.5 kbps with two codebooks is sufficient to represent bass at 24 kHz. In partial-mask reconstruction (50\% masked), the model correctly fills in missing segments that are consistent in pitch and energy with the visible surrounding tokens, indicating that the Transformer has learned local token-level statistics within a clip. In full 100\% mask generation, the generated spectrogram shows energy in the bass frequency range and some periodic structure, but the onset timing and harmonic content diverge from the target. This suggests the model has learned a prior over plausible bass textures but cannot reliably ground the generation in the specific context provided by the mixture.
+
+The qualitative result also explains why validation accuracy alone can be optimistic. During training, the model often sees mask ratios below 100\%, so visible target tokens provide local rhythm and pitch hints. Full generation removes those hints entirely, requiring the model to infer a full bass line solely from the context mixture. This is the core difficulty of the StemGen task, and it is much harder than masked reconstruction. The failure mode is usually not silence: generated audio contains energy and some structure, but temporal alignment and spectral shape drift away from the target, which would be perceptually noticeable in a listening test.
+
+\subsection{Audio-domain evaluation}
+
+Token accuracy and mel diagnostics are useful but indirect. To measure quality in the audio domain we provide an evaluation harness (\texttt{scripts/evaluate.py}) that decodes generated tokens to waveform and computes two metrics against the ground-truth bass: a log-mel-spectrogram L2 distance (lower is better) and an onset-alignment score, the correlation between the reference and generated onset-energy envelopes (higher is better, in $[-1,1]$). These are computed for the three diagnostic levels (codec reconstruction, partial-mask reconstruction, full-mask generation) so that the reconstruction-versus-generation gap can be read quantitatively rather than only from spectrograms. Because the metrics require decoding a trained checkpoint over held-out audio on GPU, we report them as the evaluation protocol here; the expected ordering, consistent with the mel diagnostics in Figure~\ref{fig:mels}, is that codec reconstruction attains the smallest mel distance and highest onset correlation, partial-mask reconstruction is intermediate, and full-mask generation is weakest on onset alignment in particular. This audio-domain protocol, together with bass activity F1 and a small human listening comparison, is the evaluation we would prioritize to turn the qualitative claims into measured ones.
 
 \subsection{MIDI branch baseline}
 
@@ -277,7 +465,8 @@ The repository includes training scripts, model code, data/config files, reprodu
 
 \section{Team Member Contribution}
 
-Member 1 focused on reading the StemGen paper, designing the audio-token reproduction plan, and writing the final report. Member 2 implemented and debugged the EnCodec tokenization, masked-token Transformer, trainer, and generation scripts. Member 3 ran the Slakh data preparation, RunPod/H100 experiments, token-cache pipeline, MIDI baselines, and qualitative diagnostics. All members discussed experiment results, prepared the presentation, and contributed to analysis.
+Dayong Wang mainly focused on the final report, while Youchen Qing mainly focused on the final presentation. Both members jointly read and discussed the StemGen paper, designed the audio-token reproduction plan, implemented and debugged the EnCodec tokenization pipeline, masked-token Transformer, trainer, and generation scripts, ran the Slakh data preparation and RunPod/H100 experiments, built the token-cache pipeline and MIDI baselines, and contributed to qualitative diagnostics and result analysis.
+
 
 \begin{thebibliography}{9}
 
