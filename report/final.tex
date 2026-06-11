@@ -410,6 +410,13 @@ The training dynamics differ notably across runs. The 550-track cached run requi
 
 The final checkpoint at epoch 31 (loss 3.2979, accuracy 0.543) is worse than the best at epoch 19, confirming that the model did overfit slightly after epoch 19. The early stopping patience of 12 epochs with minimum delta 0.005 correctly identified this and halted training, preventing further degradation. This suggests that the optimal training regime for the current data scale sits around 20--25 epochs with warm start, and that further improvement would require either more data or model regularization rather than simply longer training.
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{figures/training_curves.pdf}
+    \caption{Validation loss and token accuracy curves for the two strongest cached audio-token runs. The 1000-track fixed-stride run starts from the 550-track checkpoint and reaches its best validation loss much earlier.}
+    \label{fig:training_curves}
+\end{figure}
+
 \subsection{Qualitative analysis}
 
 Figure~\ref{fig:mels} shows the mel-spectrogram diagnostic from the 550-track cached model. The exact audio quality is still not at paper level, but the diagnostic is useful. Codec reconstruction preserves the main target structure, so the tokenizer is not the main failure point. Partial-mask reconstruction produces more reasonable time-frequency structure than early noisy baselines. Full 100\% mask generation is weaker and can become noisy or misaligned.
@@ -429,7 +436,7 @@ The qualitative result also explains why validation accuracy alone can be optimi
 
 \subsection{Audio-domain evaluation}
 
-Token accuracy and mel diagnostics are useful but indirect. To measure quality in the audio domain we provide an evaluation harness (\texttt{scripts/evaluate.py}) that decodes generated tokens to waveform and computes two metrics against the ground-truth bass: a log-mel-spectrogram L2 distance (lower is better) and an onset-alignment score, the correlation between the reference and generated onset-energy envelopes (higher is better, in $[-1,1]$). These are computed for the three diagnostic levels (codec reconstruction, partial-mask reconstruction, full-mask generation) so that the reconstruction-versus-generation gap can be read quantitatively rather than only from spectrograms. Because the metrics require decoding a trained checkpoint over held-out audio on GPU, we report them as the evaluation protocol here; the expected ordering, consistent with the mel diagnostics in Figure~\ref{fig:mels}, is that codec reconstruction attains the smallest mel distance and highest onset correlation, partial-mask reconstruction is intermediate, and full-mask generation is weakest on onset alignment in particular. This audio-domain protocol, together with bass activity F1 and a small human listening comparison, is the evaluation we would prioritize to turn the qualitative claims into measured ones.
+Token accuracy and mel diagnostics are useful but indirect. To measure quality in the audio domain we provide an evaluation harness (\texttt{scripts/eval\_audio\_metrics.py}) that decodes generated tokens to waveform and computes two metrics against the ground-truth bass: a log-mel-spectrogram L2 distance (lower is better) and an onset-alignment score, the correlation between the reference and generated onset-energy envelopes (higher is better, in $[-1,1]$). These are computed for the three diagnostic levels (codec reconstruction, partial-mask reconstruction, full-mask generation) so that the reconstruction-versus-generation gap can be read quantitatively rather than only from spectrograms. Because the metrics require decoding a trained checkpoint over held-out audio on GPU, we report them as the evaluation protocol here; the expected ordering, consistent with the mel diagnostics in Figure~\ref{fig:mels}, is that codec reconstruction attains the smallest mel distance and highest onset correlation, partial-mask reconstruction is intermediate, and full-mask generation is weakest on onset alignment in particular. This audio-domain protocol, together with bass activity F1 and a small human listening comparison, is the evaluation we would prioritize to turn the qualitative claims into measured ones.
 
 \subsection{MIDI branch baseline}
 
